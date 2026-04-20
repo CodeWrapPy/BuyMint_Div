@@ -7,3 +7,14 @@ python-dotenv>=1.0.1
 SQLAlchemy>=2.0.36
 email-validator>=2.2.0
 Werkzeug>=3.1.0
+
+# SMS notifications
+twilio>=9.0.0
+
+# OAuth (Google + Apple Sign In)
+authlib>=1.3.0
+requests>=2.31.0
+
+# Apple Sign In — JWT client_secret generation
+PyJWT[crypto]>=2.8.0
+cryptography>=42.0.0

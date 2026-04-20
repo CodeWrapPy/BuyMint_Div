@@ -1,15 +1,11 @@
 /**
  * buymint.js — Shared client-side logic for BuyMint
- * Handles: Auth, Cart, Favorites, Toast notifications, UI helpers
+ * Handles: Dropdowns, Auth, Cart, Favorites, Toast, Forms
  */
 
 // ─── API Helper ──────────────────────────────────────────────
 const API = {
   async _fetch(url, options = {}) {
-    // BUG FIX #21: No try/catch around fetch() — any network error (offline,
-    // timeout, CORS rejection) threw an unhandled Promise rejection and left
-    // every button that called Cart/Auth/Favorites silently broken with no
-    // user-visible feedback.  Now we catch and surface a friendly error.
     try {
       const res  = await fetch(url, {
         headers: { "Content-Type": "application/json" },
@@ -27,11 +23,83 @@ const API = {
       };
     }
   },
-  get:    (url)        => API._fetch(url, { method: "GET" }),
-  post:   (url, body)  => API._fetch(url, { method: "POST",   body: JSON.stringify(body) }),
-  put:    (url, body)  => API._fetch(url, { method: "PUT",    body: JSON.stringify(body) }),
-  delete: (url, body)  => API._fetch(url, { method: "DELETE", body: body ? JSON.stringify(body) : undefined }),
+  get:    (url)       => API._fetch(url, { method: "GET" }),
+  post:   (url, body) => API._fetch(url, { method: "POST",   body: JSON.stringify(body) }),
+  put:    (url, body) => API._fetch(url, { method: "PUT",    body: JSON.stringify(body) }),
+  delete: (url, body) => API._fetch(url, { method: "DELETE", body: body ? JSON.stringify(body) : undefined }),
 };
+
+// ─── Dropdown Menus ──────────────────────────────────────────
+/**
+ * ROOT CAUSE OF THE BUG
+ * ─────────────────────
+ * The old nav used pure-CSS `group-hover:block` (Tailwind). The dropdown panel
+ * had `mt-2` (8 px margin-top), creating a physical gap between the trigger
+ * button and the panel. When the mouse crosses that gap — even for a single
+ * frame — neither element is hovered, the group loses its :hover state, and
+ * Tailwind hides the panel instantly. This is why the menu "disappeared" every
+ * time the cursor moved down toward it.
+ *
+ * TWO-LAYER FIX
+ * ─────────────
+ * Layer 1 – CSS (macros.html):
+ *   The panel wrapper now uses `pt-3` PADDING (not `mt-2` margin). Padding is
+ *   inside the element's box, so the cursor is always over the wrapper while
+ *   crossing the visual gap — the group never loses hover.
+ *
+ * Layer 2 – JS (here):
+ *   We add a 180 ms close-delay on mouseleave. Even if the cursor exits for a
+ *   moment, the menu stays open. Short enough to feel instant, long enough to
+ *   survive any cursor wobble.
+ */
+function initDropdowns() {
+  const CLOSE_DELAY = 180; // ms
+
+  document.querySelectorAll("[data-dropdown]").forEach(wrapper => {
+    const trigger = wrapper.querySelector("[data-dropdown-trigger]");
+    const panel   = wrapper.querySelector("[data-dropdown-panel]");
+    const chevron = wrapper.querySelector("[data-dropdown-chevron]");
+    if (!trigger || !panel) return;
+
+    let closeTimer = null;
+
+    const open = () => {
+      clearTimeout(closeTimer);
+      panel.classList.add("dd-open");
+      trigger.setAttribute("aria-expanded", "true");
+      if (chevron) chevron.style.transform = "rotate(180deg)";
+    };
+
+    const close = () => {
+      panel.classList.remove("dd-open");
+      trigger.setAttribute("aria-expanded", "false");
+      if (chevron) chevron.style.transform = "rotate(0deg)";
+    };
+
+    const scheduleClose = () => { closeTimer = setTimeout(close, CLOSE_DELAY); };
+    const cancelClose   = () => { clearTimeout(closeTimer); };
+
+    // Hover the whole wrapper (trigger + panel share one hover zone)
+    wrapper.addEventListener("mouseenter", open);
+    wrapper.addEventListener("mouseleave", scheduleClose);
+
+    // If cursor re-enters the panel before timer fires, keep it open
+    panel.addEventListener("mouseenter", cancelClose);
+    panel.addEventListener("mouseleave", scheduleClose);
+
+    // Click also toggles (keyboard / touch)
+    trigger.addEventListener("click", e => {
+      e.stopPropagation();
+      panel.classList.contains("dd-open") ? close() : open();
+    });
+
+    // Close when user clicks elsewhere
+    document.addEventListener("click", e => { if (!wrapper.contains(e.target)) close(); });
+
+    // Close on Escape
+    document.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
+  });
+}
 
 // ─── Toast Notifications ────────────────────────────────────
 const Toast = {
@@ -49,53 +117,53 @@ const Toast = {
   },
 
   show(message, type = "success", duration = 3500) {
-    const container = this._getContainer();
-    const colors = {
-      success: "#384e2d",
-      error:   "#ba1a1a",
-      info:    "#715a3e",
-      warning: "#b4630a",
-    };
-    const icons = { success: "check_circle", error: "error", info: "info", warning: "warning" };
+    const colors = { success:"#384e2d", error:"#ba1a1a", info:"#715a3e", warning:"#b4630a" };
+    const icons  = { success:"check_circle", error:"error", info:"info", warning:"warning" };
 
     const toast = document.createElement("div");
     toast.style.cssText = `
-      background:${colors[type] || colors.success};color:#fff;
+      background:${colors[type]||colors.success};color:#fff;
       padding:14px 20px;border-radius:1rem;font-size:14px;font-weight:600;
       display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);
       transform:translateX(120%);transition:transform .3s ease;max-width:360px;
       font-family:'Inter',sans-serif;
     `;
-
-    // BUG FIX #22: Toast.show() was building its message via innerHTML with
-    // the raw message string, which was also used to display API error text.
-    // A malicious server response (or a compromised API call) could inject
-    // arbitrary HTML/JS via that error string → XSS.
-    // Fix: create the icon element normally, then set the text via a text node
-    // so no HTML interpretation happens on the message content.
+    // Text node keeps message safe from XSS (no innerHTML on untrusted content)
     const icon = document.createElement("span");
     icon.className = "material-symbols-outlined";
     icon.style.fontSize = "20px";
     icon.textContent = icons[type] || "info";
-
-    const text = document.createTextNode(message);
     toast.appendChild(icon);
-    toast.appendChild(text);
+    toast.appendChild(document.createTextNode(message));
 
-    container.appendChild(toast);
-
+    this._getContainer().appendChild(toast);
     requestAnimationFrame(() => { toast.style.transform = "translateX(0)"; });
-
     setTimeout(() => {
       toast.style.transform = "translateX(120%)";
       setTimeout(() => toast.remove(), 300);
     }, duration);
   },
 
-  success: (msg) => Toast.show(msg, "success"),
-  error:   (msg) => Toast.show(msg, "error"),
-  info:    (msg) => Toast.show(msg, "info"),
+  success: msg => Toast.show(msg, "success"),
+  error:   msg => Toast.show(msg, "error"),
+  info:    msg => Toast.show(msg, "info"),
 };
+
+// ─── XSS-safe helpers ────────────────────────────────────────
+const _esc = str =>
+  String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;")
+             .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+
+function _setAuthError(box, msg) {
+  box.className = "mb-4 p-4 rounded-xl text-sm font-medium flex items-center gap-2 bg-red-50 text-red-700 border border-red-100";
+  box.innerHTML = `<span class="material-symbols-outlined">error</span> ${_esc(msg)}`;
+  box.classList.remove("hidden");
+}
+function _setAuthSuccess(box, msg) {
+  box.className = "mb-4 p-4 rounded-xl text-sm font-medium flex items-center gap-2 bg-emerald-50 text-emerald-700";
+  box.innerHTML = `<span class="material-symbols-outlined">check_circle</span> ${_esc(msg)}`;
+  box.classList.remove("hidden");
+}
 
 // ─── Cart ────────────────────────────────────────────────────
 const Cart = {
@@ -103,12 +171,11 @@ const Cart = {
     if (btn) { btn.disabled = true; btn.style.opacity = "0.7"; }
     const { ok, data } = await API.post("/api/cart/", { product_id: productId, quantity });
     if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
-
     if (ok) {
       Toast.success("Added to cart!");
       Cart._updateBadges(data.cart?.item_count ?? 0);
     } else {
-      if (data.error && data.error.toLowerCase().includes("log in")) {
+      if (data.error?.toLowerCase().includes("log in")) {
         Toast.info("Please log in to add items to your cart.");
         setTimeout(() => { window.location.href = "/login"; }, 1500);
       } else {
@@ -120,12 +187,8 @@ const Cart = {
 
   async remove(itemId) {
     const { ok, data } = await API.delete(`/api/cart/${itemId}`);
-    if (ok) {
-      Toast.success("Item removed.");
-      Cart._updateBadges(data.cart?.item_count ?? 0);
-    } else {
-      Toast.error(data.error || "Could not remove item.");
-    }
+    if (ok) { Toast.success("Item removed."); Cart._updateBadges(data.cart?.item_count ?? 0); }
+    else    Toast.error(data.error || "Could not remove item.");
     return { ok, data };
   },
 
@@ -157,12 +220,11 @@ const Favorites = {
       Toast.success(isFav ? "Added to favorites!" : "Removed from favorites.");
       if (btn) {
         btn.querySelector(".material-symbols-outlined").style.fontVariationSettings =
-          isFav
-            ? "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24"
-            : "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24";
+          isFav ? "'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24"
+                : "'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24";
       }
     } else {
-      if (data.error && data.error.toLowerCase().includes("log in")) {
+      if (data.error?.toLowerCase().includes("log in")) {
         Toast.info("Please log in to save favorites.");
         setTimeout(() => { window.location.href = "/login"; }, 1500);
       } else {
@@ -175,87 +237,36 @@ const Favorites = {
 
 // ─── Auth ────────────────────────────────────────────────────
 const Auth = {
-  async login(email, password, remember = false) {
-    return API.post("/api/auth/login", { email, password, remember });
-  },
-
-  async register(full_name, email, password) {
-    return API.post("/api/auth/register", { full_name, email, password });
-  },
-
+  login:    (email, pw, rem) => API.post("/api/auth/login", { email, password: pw, remember: rem }),
+  register: (name, email, pw) => API.post("/api/auth/register", { full_name: name, email, password: pw }),
   async logout() {
     const { ok } = await API.post("/api/auth/logout");
     if (ok) window.location.href = "/";
   },
 };
 
-// ─── Contact ─────────────────────────────────────────────────
 const Contact = {
-  async send(name, email, subject, message) {
-    return API.post("/api/contact/", { name, email, subject, message });
-  },
+  send: (name, email, subject, message) =>
+    API.post("/api/contact/", { name, email, subject, message }),
 };
 
-// ─── Safe HTML helpers ───────────────────────────────────────
-/**
- * Escape a string so it is safe to inject into innerHTML contexts.
- * Used anywhere we build an HTML string that must include user/API-sourced text.
- */
-function _escHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-/**
- * BUG FIX #23: Both the login and signup error message boxes were built with:
- *   msgBox.innerHTML = `...<span>...</span> ${data.error}`
- * If data.error contained any HTML characters, the browser would parse them,
- * giving a malicious server response (or network MITM) a foothold for XSS.
- * _setAuthError() now escapes the error string before inserting it.
- */
-function _setAuthError(msgBox, message) {
-  msgBox.className =
-    "mb-4 p-4 rounded-xl text-sm font-medium flex items-center gap-2 " +
-    "bg-red-50 text-red-700 border border-red-100";
-  msgBox.innerHTML =
-    `<span class="material-symbols-outlined">error</span> ${_escHtml(message)}`;
-  msgBox.classList.remove("hidden");
-}
-
-function _setAuthSuccess(msgBox, message) {
-  msgBox.className =
-    "mb-4 p-4 rounded-xl text-sm font-medium flex items-center gap-2 " +
-    "bg-emerald-50 text-emerald-700";
-  msgBox.innerHTML =
-    `<span class="material-symbols-outlined">check_circle</span> ${_escHtml(message)}`;
-  msgBox.classList.remove("hidden");
-}
-
-// ─── Login Form Handler ──────────────────────────────────────
+// ─── Login Form ──────────────────────────────────────────────
 function initLoginForm() {
   const form = document.getElementById("login-form");
   if (!form) return;
 
-  // Toggle password visibility
+  // Password visibility toggle
   document.querySelectorAll("[data-toggle-password]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const input = document.getElementById(btn.dataset.togglePassword);
-      const icon  = btn.querySelector(".material-symbols-outlined");
-      if (input.type === "password") {
-        input.type = "text";
-        if (icon) icon.textContent = "visibility_off";
-      } else {
-        input.type = "password";
-        if (icon) icon.textContent = "visibility";
-      }
+      const inp  = document.getElementById(btn.dataset.togglePassword);
+      const icon = btn.querySelector(".material-symbols-outlined");
+      const show = inp.type === "password";
+      inp.type = show ? "text" : "password";
+      if (icon) icon.textContent = show ? "visibility_off" : "visibility";
     });
   });
 
-  form.addEventListener("submit", async (e) => {
+  form.addEventListener("submit", async e => {
     e.preventDefault();
     const email    = form.querySelector('[name="email"]').value.trim();
     const password = form.querySelector('[name="password"]').value;
@@ -264,8 +275,7 @@ function initLoginForm() {
     const msgBox   = document.getElementById("auth-message");
 
     if (msgBox) msgBox.classList.add("hidden");
-    btn.disabled    = true;
-    btn.textContent = "Verifying…";
+    btn.disabled = true; btn.textContent = "Verifying…";
 
     const { ok, data } = await Auth.login(email, password, remember);
 
@@ -275,62 +285,49 @@ function initLoginForm() {
     } else {
       btn.disabled = false;
       btn.innerHTML = `Login <span class="material-symbols-outlined text-[20px]">arrow_forward</span>`;
-      const errMsg = data.error || "Login failed.";
-      if (msgBox) {
-        _setAuthError(msgBox, errMsg);
-      } else {
-        Toast.error(errMsg);
-      }
+      if (msgBox) _setAuthError(msgBox, data.error || "Login failed.");
+      else        Toast.error(data.error || "Login failed.");
     }
   });
 }
 
-// ─── Signup Form Handler ─────────────────────────────────────
+// ─── Signup Form ─────────────────────────────────────────────
 function initSignupForm() {
   const form = document.getElementById("signup-form");
   if (!form) return;
 
-  form.addEventListener("submit", async (e) => {
+  form.addEventListener("submit", async e => {
     e.preventDefault();
-    const full_name = form.querySelector('[name="full_name"]').value.trim();
-    const email     = form.querySelector('[name="email"]').value.trim();
-    const password  = form.querySelector('[name="password"]').value;
-    const btn       = form.querySelector('[type="submit"]');
-    const msgBox    = document.getElementById("auth-message");
+    const name     = form.querySelector('[name="full_name"]').value.trim();
+    const email    = form.querySelector('[name="email"]').value.trim();
+    const password = form.querySelector('[name="password"]').value;
+    const btn      = form.querySelector('[type="submit"]');
+    const msgBox   = document.getElementById("auth-message");
 
-    if (password.length < 6) {
-      Toast.error("Password must be at least 6 characters.");
-      return;
-    }
+    if (password.length < 6) { Toast.error("Password must be at least 6 characters."); return; }
 
     if (msgBox) msgBox.classList.add("hidden");
-    btn.disabled    = true;
-    btn.textContent = "Creating account…";
+    btn.disabled = true; btn.textContent = "Creating account…";
 
-    const { ok, data } = await Auth.register(full_name, email, password);
+    const { ok, data } = await Auth.register(name, email, password);
 
     if (ok) {
       Toast.success("Account created! Welcome to BuyMint 🌱");
       setTimeout(() => { window.location.href = "/home"; }, 1000);
     } else {
-      btn.disabled    = false;
-      btn.textContent = "Sign Up";
-      const errMsg = data.error || "Sign up failed.";
-      if (msgBox) {
-        _setAuthError(msgBox, errMsg);
-      } else {
-        Toast.error(errMsg);
-      }
+      btn.disabled = false; btn.textContent = "Sign Up";
+      if (msgBox) _setAuthError(msgBox, data.error || "Sign up failed.");
+      else        Toast.error(data.error || "Sign up failed.");
     }
   });
 }
 
-// ─── Contact Form Handler ────────────────────────────────────
+// ─── Contact Form ────────────────────────────────────────────
 function initContactForm() {
   const form = document.getElementById("contact-form");
   if (!form) return;
 
-  form.addEventListener("submit", async (e) => {
+  form.addEventListener("submit", async e => {
     e.preventDefault();
     const name    = form.querySelector('[name="name"]').value.trim();
     const email   = form.querySelector('[name="email"]').value.trim();
@@ -338,68 +335,51 @@ function initContactForm() {
     const message = form.querySelector('[name="message"]').value.trim();
     const btn     = form.querySelector('[type="submit"]');
 
-    btn.disabled    = true;
-    btn.textContent = "Sending…";
-
+    btn.disabled = true; btn.textContent = "Sending…";
     const { ok, data } = await Contact.send(name, email, subject, message);
+    btn.disabled = false; btn.textContent = "Send Message";
 
-    btn.disabled    = false;
-    btn.textContent = "Send Message";
-
-    if (ok) {
-      Toast.success(data.message || "Message sent!");
-      form.reset();
-    } else {
-      Toast.error(data.error || "Could not send message.");
-    }
+    if (ok) { Toast.success(data.message || "Message sent!"); form.reset(); }
+    else    Toast.error(data.error || "Could not send message.");
   });
 }
 
-// ─── Logout buttons ──────────────────────────────────────────
+// ─── Logout ──────────────────────────────────────────────────
 function initLogoutButtons() {
   document.querySelectorAll("[data-action='logout']").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      Auth.logout();
-    });
+    btn.addEventListener("click", e => { e.preventDefault(); Auth.logout(); });
   });
 }
 
 // ─── Profile Form ────────────────────────────────────────────
 function initProfileForm() {
   const form = document.getElementById("profile-form");
-  if (!form) return;
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const full_name = form.querySelector('[name="full_name"]')?.value.trim();
-    const phone     = form.querySelector('[name="phone"]')?.value.trim();
-    const address   = form.querySelector('[name="address"]')?.value.trim();
-    const btn       = form.querySelector('[type="submit"]');
-
-    btn.disabled    = true;
-    btn.textContent = "Saving…";
-
-    // Send all three keys explicitly so the server can distinguish
-    // "key not mentioned" (skip) from "key = empty string" (clear field).
-    const { ok, data } = await API.put("/api/profile/", { full_name, phone, address });
-
-    btn.disabled    = false;
-    btn.textContent = "Save Changes";
-
-    if (ok) Toast.success("Profile updated!");
-    else    Toast.error(data.error || "Could not update profile.");
-  });
+  if (form) {
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const btn = form.querySelector('[type="submit"]');
+      btn.disabled = true; btn.textContent = "Saving…";
+      const { ok, data } = await API.put("/api/profile/", {
+        full_name: form.querySelector('[name="full_name"]')?.value.trim(),
+        phone:     form.querySelector('[name="phone"]')?.value.trim(),
+        address:   form.querySelector('[name="address"]')?.value.trim(),
+      });
+      btn.disabled = false; btn.textContent = "Save Changes";
+      if (ok) Toast.success("Profile updated!");
+      else    Toast.error(data.error || "Could not update profile.");
+    });
+  }
 
   const pwForm = document.getElementById("password-form");
   if (pwForm) {
-    pwForm.addEventListener("submit", async (e) => {
+    pwForm.addEventListener("submit", async e => {
       e.preventDefault();
-      const old_password = pwForm.querySelector('[name="old_password"]').value;
-      const new_password = pwForm.querySelector('[name="new_password"]').value;
       const btn = pwForm.querySelector('[type="submit"]');
       btn.disabled = true;
-      const { ok, data } = await API.post("/api/profile/change-password", { old_password, new_password });
+      const { ok, data } = await API.post("/api/profile/change-password", {
+        old_password: pwForm.querySelector('[name="old_password"]').value,
+        new_password: pwForm.querySelector('[name="new_password"]').value,
+      });
       btn.disabled = false;
       if (ok) { Toast.success("Password changed!"); pwForm.reset(); }
       else    Toast.error(data.error || "Password change failed.");
@@ -413,8 +393,7 @@ function initCartPage() {
 
   document.querySelectorAll("[data-remove-item]").forEach(btn => {
     btn.addEventListener("click", async () => {
-      const itemId = btn.dataset.removeItem;
-      const { ok } = await Cart.remove(itemId);
+      const { ok } = await Cart.remove(btn.dataset.removeItem);
       if (ok) location.reload();
     });
   });
@@ -424,69 +403,46 @@ function initCartPage() {
     input.addEventListener("change", () => {
       clearTimeout(debounce);
       debounce = setTimeout(async () => {
-        const itemId = input.dataset.qtyInput;
-
-        // BUG FIX #24: parseInt() on an empty or non-numeric input returns NaN.
-        // JSON.stringify(NaN) produces "null", so the server received
-        // {"quantity": null} → int(None) → TypeError 500.
-        // Now we validate before making the call.
         const qty = parseInt(input.value, 10);
-        if (isNaN(qty) || qty < 0) {
-          Toast.error("Please enter a valid quantity.");
-          return;
-        }
-        const { ok } = await Cart.update(itemId, qty);
+        if (isNaN(qty) || qty < 0) { Toast.error("Please enter a valid quantity."); return; }
+        const { ok } = await Cart.update(input.dataset.qtyInput, qty);
         if (ok) location.reload();
       }, 400);
     });
   });
 
+  // Promo code
   const promoBtn = document.getElementById("apply-promo");
   if (promoBtn) {
     promoBtn.addEventListener("click", async () => {
       const code = document.getElementById("promo-input")?.value.trim().toUpperCase();
       if (!code) { Toast.info("Enter a promo code."); return; }
-
-      promoBtn.disabled    = true;
-      promoBtn.textContent = "Applying…";
-
+      promoBtn.disabled = true; promoBtn.textContent = "Applying…";
       const { ok, data } = await API.post("/api/cart/promo", { code });
-
-      promoBtn.disabled    = false;
-      promoBtn.textContent = "Apply";
-
+      promoBtn.disabled = false; promoBtn.textContent = "Apply";
       if (ok) {
         Toast.success(`Code applied! You save ₹${data.discount}`);
-        const discountEl = document.getElementById("discount-display");
-        if (discountEl) discountEl.textContent = `- ₹${data.discount}`;
-        const totalEl = document.getElementById("total-display");
-        if (totalEl) totalEl.textContent = `₹${data.new_total}`;
-        // Store the applied code so checkout can pick it up
-        if (promoBtn.dataset) promoBtn.dataset.appliedCode = code;
+        const d = document.getElementById("discount-display");
+        if (d) d.textContent = `- ₹${data.discount}`;
+        const t = document.getElementById("total-display");
+        if (t) t.textContent = `₹${data.new_total}`;
+        promoBtn.dataset.appliedCode = code;
       } else {
         Toast.error(data.error || "Invalid promo code.");
       }
     });
   }
 
+  // Checkout
   const checkoutBtn = document.getElementById("checkout-btn");
   if (checkoutBtn) {
     checkoutBtn.addEventListener("click", async () => {
       const address = document.getElementById("shipping-address")?.value.trim();
       const code    = document.getElementById("promo-input")?.value.trim().toUpperCase() || "";
       if (!address) { Toast.error("Please enter your shipping address."); return; }
-
-      checkoutBtn.disabled    = true;
-      checkoutBtn.textContent = "Placing order…";
-
-      const { ok, data } = await API.post("/api/cart/checkout", {
-        shipping_address: address,
-        promo_code: code,
-      });
-
-      checkoutBtn.disabled    = false;
-      checkoutBtn.textContent = "Place Order";
-
+      checkoutBtn.disabled = true; checkoutBtn.textContent = "Placing order…";
+      const { ok, data } = await API.post("/api/cart/checkout", { shipping_address: address, promo_code: code });
+      checkoutBtn.disabled = false; checkoutBtn.textContent = "Place Order";
       if (ok) {
         Toast.success(`Order #${data.order.id} placed! Earned ${data.points_earned} points 🌿`);
         setTimeout(() => { window.location.href = "/order-history"; }, 2000);
@@ -501,37 +457,26 @@ function initCartPage() {
 function initFavoritesPage() {
   document.querySelectorAll("[data-remove-fav]").forEach(btn => {
     btn.addEventListener("click", async () => {
-      const productId = btn.dataset.removeFav;
-      const { ok, data } = await API.delete(`/api/favorites/${productId}`);
-      if (ok) {
-        Toast.success("Removed from favorites.");
-        btn.closest("[data-fav-card]")?.remove();
-      } else {
-        Toast.error(data.error || "Could not remove.");
-      }
+      const { ok, data } = await API.delete(`/api/favorites/${btn.dataset.removeFav}`);
+      if (ok) { Toast.success("Removed from favorites."); btn.closest("[data-fav-card]")?.remove(); }
+      else    Toast.error(data.error || "Could not remove.");
     });
   });
 }
 
-// ─── Product Cards (add-to-cart / favorite buttons) ──────────
+// ─── Product Cards ───────────────────────────────────────────
 function initProductCards() {
   document.querySelectorAll("[data-add-to-cart]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = parseInt(btn.dataset.addToCart, 10);
-      Cart.add(id, 1, btn);
-    });
+    btn.addEventListener("click", () => Cart.add(parseInt(btn.dataset.addToCart, 10), 1, btn));
   });
-
   document.querySelectorAll("[data-toggle-fav]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = parseInt(btn.dataset.toggleFav, 10);
-      Favorites.toggle(id, btn);
-    });
+    btn.addEventListener("click", () => Favorites.toggle(parseInt(btn.dataset.toggleFav, 10), btn));
   });
 }
 
 // ─── Boot ────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
+  initDropdowns();       // ← first: makes nav interactive immediately
   initLoginForm();
   initSignupForm();
   initContactForm();

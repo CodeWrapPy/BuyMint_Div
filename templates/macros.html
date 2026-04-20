@@ -39,6 +39,34 @@
 <style>
   .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
   .fill-icon { font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24; }
+
+  /*
+   * DROPDOWN FIX
+   * The old approach used Tailwind's `group-hover:block`. This breaks whenever
+   * the cursor moves through the 8px `mt-2` gap between the trigger button and
+   * the panel — neither element is hovered for that brief moment, so the group
+   * loses hover state and the panel vanishes.
+   *
+   * Fix A (CSS layer): The outer wrapper now uses `pt-3` padding (not margin)
+   *   so the gap is inside the hoverable element — the cursor never leaves the
+   *   group while travelling from button to panel.
+   *
+   * Fix B (JS layer): initDropdowns() in buymint.js adds a 180ms leave-delay
+   *   so even if the cursor exits momentarily, the panel stays visible.
+   *
+   * Both fixes together make the dropdowns rock-solid.
+   */
+  [data-dropdown-panel] {
+    display: none;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+  [data-dropdown-panel].dd-open {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+  }
 </style>
 <script src="{{ url_for('static', filename='js/buymint.js') }}" defer></script>
 {% endmacro %}
@@ -52,21 +80,47 @@
       <a class="text-2xl font-bold tracking-tighter text-emerald-900 font-headline" href="{{ url_for('views.home') }}">BuyMint</a>
       <div class="hidden md:flex items-center gap-8 text-sm font-medium">
         <a class="{% if active=='home' %}text-emerald-900 border-b-2 border-emerald-800 pb-1{% else %}text-emerald-700/70 hover:text-emerald-900{% endif %} transition-colors" href="{{ url_for('views.home') }}">Home</a>
-        <div class="relative group">
-          <button class="flex items-center gap-1 text-emerald-700/70 hover:text-emerald-900 transition-colors">
-            Categories <span class="material-symbols-outlined text-sm">expand_more</span>
+
+        {# ── Categories dropdown ── #}
+        <div class="relative" data-dropdown>
+          <button
+            data-dropdown-trigger
+            class="flex items-center gap-1 text-emerald-700/70 hover:text-emerald-900 transition-colors"
+            aria-haspopup="true" aria-expanded="false"
+          >
+            Categories
+            <span class="material-symbols-outlined text-sm transition-transform duration-200" data-dropdown-chevron>expand_more</span>
           </button>
-          <div class="absolute left-0 top-full mt-2 w-48 bg-surface rounded-xl shadow-lg border border-outline-variant/20 hidden group-hover:block">
-            <a class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low rounded-t-xl" href="{{ url_for('views.clothing') }}">Clothing</a>
-            <a class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.beauty') }}">Beauty &amp; Salon</a>
-            <a class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.sports') }}">Sports</a>
-            <a class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.dining') }}">Dining</a>
-            <a class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low rounded-b-xl" href="{{ url_for('views.stationery') }}">Stationery</a>
+          {#
+            The wrapper div uses pt-3 (not mt-2). This means the dropdown panel
+            is positioned flush against the button with padding bridging the
+            visual gap — the cursor stays inside the parent at all times.
+          #}
+          <div class="absolute left-0 top-full pt-3 w-52" data-dropdown-panel>
+            <div class="bg-surface rounded-xl shadow-lg border border-outline-variant/20 overflow-hidden">
+              <a class="flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.clothing') }}">
+                <span class="material-symbols-outlined text-[16px] text-emerald-700">checkroom</span> Clothing
+              </a>
+              <a class="flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.beauty') }}">
+                <span class="material-symbols-outlined text-[16px] text-emerald-700">spa</span> Beauty &amp; Salon
+              </a>
+              <a class="flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.sports') }}">
+                <span class="material-symbols-outlined text-[16px] text-emerald-700">sports_soccer</span> Sports
+              </a>
+              <a class="flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.dining') }}">
+                <span class="material-symbols-outlined text-[16px] text-emerald-700">restaurant</span> Dining
+              </a>
+              <a class="flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.stationery') }}">
+                <span class="material-symbols-outlined text-[16px] text-emerald-700">edit_note</span> Stationery
+              </a>
+            </div>
           </div>
         </div>
+
         <a class="text-emerald-700/70 hover:text-emerald-900 transition-colors" href="{{ url_for('views.favorites') }}">Favourites</a>
       </div>
     </div>
+
     <div class="flex items-center gap-4">
       <a class="relative text-emerald-900 hover:opacity-70" href="{{ url_for('views.cart') }}">
         <span class="material-symbols-outlined">shopping_cart</span>
@@ -74,27 +128,35 @@
         <span class="cart-badge absolute -top-2 -right-2 bg-primary text-on-primary text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{{ cart_cnt }}</span>
         {% endif %}
       </a>
+
       {% if current_user.is_authenticated %}
-      <div class="relative group">
-        <button class="flex items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 text-sm font-semibold text-on-surface hover:bg-surface-container-high transition-colors">
+      {# ── Account dropdown ── #}
+      <div class="relative" data-dropdown>
+        <button
+          data-dropdown-trigger
+          class="flex items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 text-sm font-semibold text-on-surface hover:bg-surface-container-high transition-colors"
+          aria-haspopup="true" aria-expanded="false"
+        >
           <span class="material-symbols-outlined text-[18px]">person</span>
           {{ current_user.full_name.split()[0] }}
-          <span class="material-symbols-outlined text-sm">expand_more</span>
+          <span class="material-symbols-outlined text-sm transition-transform duration-200" data-dropdown-chevron>expand_more</span>
         </button>
-        <div class="absolute right-0 top-full mt-2 w-52 bg-surface rounded-xl shadow-lg border border-outline-variant/20 hidden group-hover:block">
-          <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low rounded-t-xl" href="{{ url_for('views.profile') }}">
-            <span class="material-symbols-outlined text-[18px]">manage_accounts</span> My Profile
-          </a>
-          <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.order_history') }}">
-            <span class="material-symbols-outlined text-[18px]">receipt_long</span> Order History
-          </a>
-          <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.rewards') }}">
-            <span class="material-symbols-outlined text-[18px]">workspace_premium</span> Rewards
-          </a>
-          <hr class="border-outline-variant/20 mx-3"/>
-          <button data-action="logout" class="flex items-center gap-2 w-full px-4 py-3 text-sm text-error hover:bg-error-container/10 rounded-b-xl">
-            <span class="material-symbols-outlined text-[18px]">logout</span> Logout
-          </button>
+        <div class="absolute right-0 top-full pt-3 w-52" data-dropdown-panel>
+          <div class="bg-surface rounded-xl shadow-lg border border-outline-variant/20 overflow-hidden">
+            <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.profile') }}">
+              <span class="material-symbols-outlined text-[18px]">manage_accounts</span> My Profile
+            </a>
+            <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.order_history') }}">
+              <span class="material-symbols-outlined text-[18px]">receipt_long</span> Order History
+            </a>
+            <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.rewards') }}">
+              <span class="material-symbols-outlined text-[18px]">workspace_premium</span> Rewards
+            </a>
+            <hr class="border-outline-variant/20 mx-3"/>
+            <button data-action="logout" class="flex items-center gap-2 w-full px-4 py-3 text-sm text-error hover:bg-error-container/10">
+              <span class="material-symbols-outlined text-[18px]">logout</span> Logout
+            </button>
+          </div>
         </div>
       </div>
       {% else %}
