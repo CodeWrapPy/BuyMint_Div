@@ -1,0 +1,130 @@
+{% from "macros.html" import head_common, footer with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{{ head_common("BuyMint – The Organic Curator") }}
+</head>
+<body class="bg-background font-body text-on-background">
+
+<!-- Minimal nav for landing -->
+<nav class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md">
+  <div class="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
+    <a class="text-2xl font-bold tracking-tighter text-emerald-900 font-headline" href="/">BuyMint</a>
+    <div class="flex items-center gap-4">
+      <a class="text-sm font-medium text-on-surface-variant hover:text-primary transition-colors" href="{{ url_for('views.login') }}">Login</a>
+      <a class="px-5 py-2.5 rounded-full bg-primary text-on-primary text-sm font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20" href="{{ url_for('views.signup') }}">
+        Get Started
+      </a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- Hero -->
+  <section class="min-h-screen flex items-center px-8 max-w-7xl mx-auto pt-24 pb-20">
+    <div class="flex flex-col lg:flex-row items-center gap-16 w-full">
+      <div class="flex-1 text-center lg:text-left">
+        <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-tertiary-container text-on-tertiary-container text-xs font-bold tracking-widest uppercase mb-8">
+          🌿 The Organic Curator
+        </div>
+        <h1 class="font-headline text-6xl md:text-7xl font-extrabold tracking-tighter text-on-surface mb-6 leading-none">
+          Shop.<br/>
+          <span class="text-primary">Sustainably.</span>
+        </h1>
+        <p class="text-on-surface-variant text-xl leading-relaxed mb-10 max-w-xl mx-auto lg:mx-0">
+          BuyMint curates the finest organic clothing, beauty, dining, sports, and stationery — all ethically sourced, planet-first.
+        </p>
+        <div class="flex flex-wrap gap-4 justify-center lg:justify-start">
+          <a href="{{ url_for('views.signup') }}" class="px-10 py-4 bg-primary text-on-primary font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-95 text-lg">
+            Start Shopping
+          </a>
+          <a href="{{ url_for('views.about') }}" class="px-10 py-4 bg-surface-container text-on-surface font-bold rounded-xl hover:bg-surface-container-high transition-all text-lg">
+            Our Story
+          </a>
+        </div>
+        <div class="mt-12 flex items-center gap-6 justify-center lg:justify-start">
+          <div class="text-center">
+            <p class="font-headline text-3xl font-extrabold text-on-surface">10k+</p>
+            <p class="text-xs text-outline uppercase tracking-widest">Happy Shoppers</p>
+          </div>
+          <div class="w-px h-10 bg-outline-variant"></div>
+          <div class="text-center">
+            <p class="font-headline text-3xl font-extrabold text-on-surface">500+</p>
+            <p class="text-xs text-outline uppercase tracking-widest">Organic Products</p>
+          </div>
+          <div class="w-px h-10 bg-outline-variant"></div>
+          <div class="text-center">
+            <p class="font-headline text-3xl font-extrabold text-on-surface">100%</p>
+            <p class="text-xs text-outline uppercase tracking-widest">Verified Organic</p>
+          </div>
+        </div>
+      </div>
+      <div class="flex-1 relative max-w-lg w-full">
+        <div class="w-full h-[520px] rounded-3xl overflow-hidden shadow-2xl">
+          <img alt="Organic lifestyle products" class="w-full h-full object-cover"
+               src="https://images.unsplash.com/photo-1542838132-92c53300491e?w=800"/>
+        </div>
+        <!-- Floating cards -->
+        <div class="absolute -bottom-6 -left-6 bg-surface rounded-2xl p-4 shadow-xl">
+          <p class="text-xs font-bold text-outline uppercase tracking-widest mb-1">Today's Pick</p>
+          <p class="font-headline font-bold text-on-surface">Organic Matcha Powder</p>
+          <p class="text-primary font-bold">₹699</p>
+        </div>
+        <div class="absolute -top-6 -right-6 bg-primary rounded-2xl p-4 shadow-xl text-on-primary">
+          <p class="text-xs font-bold uppercase tracking-widest mb-1 opacity-70">New Arrivals</p>
+          <p class="font-headline font-bold text-lg">30+ Products</p>
+          <p class="text-xs opacity-70">This Week</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Categories Showcase -->
+  <section class="py-24 px-8 bg-surface-container-low">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="font-headline text-4xl font-extrabold tracking-tighter text-on-surface mb-4">Everything Organic</h2>
+        <p class="text-on-surface-variant text-lg">Five curated categories, one sustainable marketplace.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+        {% set cats = [
+          ("👕", "Clothing",   "Ethical fabrics, timeless style."),
+          ("✨", "Beauty",     "Clean, cruelty-free glow."),
+          ("🏃", "Sports",     "Gear that performs and cares."),
+          ("🌿", "Dining",     "From farm to your table."),
+          ("✏️", "Stationery","Eco tools for creative minds."),
+        ] %}
+        {% for emoji, name, tagline in cats %}
+        <a href="{{ url_for('views.signup') }}" class="group bg-surface rounded-2xl p-6 text-center hover:shadow-xl hover:-translate-y-2 transition-all duration-300">
+          <div class="text-5xl mb-4">{{ emoji }}</div>
+          <h3 class="font-headline font-bold text-on-surface mb-2">{{ name }}</h3>
+          <p class="text-xs text-on-surface-variant leading-relaxed">{{ tagline }}</p>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="py-24 px-8">
+    <div class="max-w-3xl mx-auto text-center">
+      <div class="bg-primary rounded-3xl p-14 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-72 h-72 rounded-full bg-on-primary/5 -translate-y-1/2 translate-x-1/4"></div>
+        <div class="relative z-10">
+          <h2 class="font-headline text-4xl font-extrabold tracking-tighter text-on-primary mb-4">Ready to live organically?</h2>
+          <p class="text-on-primary-container text-lg mb-10 opacity-90">Join BuyMint for free. Earn reward points, unlock exclusive tiers, and shop guilt-free.</p>
+          <a href="{{ url_for('views.signup') }}" class="inline-flex items-center gap-2 px-10 py-4 bg-on-primary text-primary font-bold rounded-xl text-lg hover:bg-on-primary/90 transition-all shadow-xl">
+            Create Free Account <span class="material-symbols-outlined">arrow_forward</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+{{ footer() }}
+
+</body>
+</html>

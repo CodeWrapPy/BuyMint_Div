@@ -1,0 +1,187 @@
+{# macros.html — Reusable Jinja2 components for BuyMint #}
+
+{% macro head_common(title="BuyMint") %}
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>{{ title }} | BuyMint</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-variant":"#e3e3de","on-secondary-container":"#786044","on-surface-variant":"#44483f",
+          "on-primary":"#ffffff","on-primary-fixed":"#0c2005","error-container":"#ffdad6",
+          "on-tertiary-container":"#c8e1be","on-background":"#1b1c19","secondary-container":"#fdddb9",
+          "primary-fixed-dim":"#b4cea4","on-error":"#ffffff","on-secondary-fixed-variant":"#584329",
+          "inverse-primary":"#b4cea4","on-secondary-fixed":"#281803","background":"#faf9f4",
+          "surface-dim":"#dbdad5","surface-container-highest":"#e3e3de","primary":"#384e2d",
+          "surface":"#faf9f4","outline":"#74796f","on-tertiary-fixed":"#0c200a",
+          "tertiary-fixed":"#d1eac6","primary-container":"#4f6643","primary-fixed":"#d0ebbe",
+          "error":"#ba1a1a","on-error-container":"#93000a","on-tertiary":"#ffffff",
+          "outline-variant":"#c4c8bd","tertiary-fixed-dim":"#b5ceab","on-tertiary-fixed-variant":"#374c32",
+          "surface-container-lowest":"#ffffff","tertiary":"#384d33","on-secondary":"#ffffff",
+          "secondary-fixed-dim":"#e0c29f","surface-container":"#efeee9","on-surface":"#1b1c19",
+          "on-primary-container":"#c8e3b7","surface-bright":"#faf9f4","surface-container-low":"#f5f4ef",
+          "on-primary-fixed-variant":"#374d2c","surface-tint":"#4e6542","inverse-surface":"#30312e",
+          "surface-container-high":"#e9e8e3","tertiary-container":"#4f6549","inverse-on-surface":"#f2f1ec",
+          "secondary":"#715a3e","secondary-fixed":"#fdddb9"
+        },
+        borderRadius: {"DEFAULT":"1rem","lg":"2rem","xl":"3rem","full":"9999px"},
+        fontFamily: {"headline":["Plus Jakarta Sans"],"body":["Inter"],"label":["Inter"]}
+      }
+    }
+  }
+</script>
+<style>
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+  .fill-icon { font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24; }
+</style>
+<script src="{{ url_for('static', filename='js/buymint.js') }}" defer></script>
+{% endmacro %}
+
+
+{% macro top_nav(active="home") %}
+{% set cart_cnt = cart_count | default(0) %}
+<nav class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md">
+  <div class="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-12">
+      <a class="text-2xl font-bold tracking-tighter text-emerald-900 font-headline" href="{{ url_for('views.home') }}">BuyMint</a>
+      <div class="hidden md:flex items-center gap-8 text-sm font-medium">
+        <a class="{% if active=='home' %}text-emerald-900 border-b-2 border-emerald-800 pb-1{% else %}text-emerald-700/70 hover:text-emerald-900{% endif %} transition-colors" href="{{ url_for('views.home') }}">Home</a>
+        <div class="relative group">
+          <button class="flex items-center gap-1 text-emerald-700/70 hover:text-emerald-900 transition-colors">
+            Categories <span class="material-symbols-outlined text-sm">expand_more</span>
+          </button>
+          <div class="absolute left-0 top-full mt-2 w-48 bg-surface rounded-xl shadow-lg border border-outline-variant/20 hidden group-hover:block">
+            <a class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low rounded-t-xl" href="{{ url_for('views.clothing') }}">Clothing</a>
+            <a class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.beauty') }}">Beauty &amp; Salon</a>
+            <a class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.sports') }}">Sports</a>
+            <a class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.dining') }}">Dining</a>
+            <a class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low rounded-b-xl" href="{{ url_for('views.stationery') }}">Stationery</a>
+          </div>
+        </div>
+        <a class="text-emerald-700/70 hover:text-emerald-900 transition-colors" href="{{ url_for('views.favorites') }}">Favourites</a>
+      </div>
+    </div>
+    <div class="flex items-center gap-4">
+      <a class="relative text-emerald-900 hover:opacity-70" href="{{ url_for('views.cart') }}">
+        <span class="material-symbols-outlined">shopping_cart</span>
+        {% if cart_cnt > 0 %}
+        <span class="cart-badge absolute -top-2 -right-2 bg-primary text-on-primary text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{{ cart_cnt }}</span>
+        {% endif %}
+      </a>
+      {% if current_user.is_authenticated %}
+      <div class="relative group">
+        <button class="flex items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 text-sm font-semibold text-on-surface hover:bg-surface-container-high transition-colors">
+          <span class="material-symbols-outlined text-[18px]">person</span>
+          {{ current_user.full_name.split()[0] }}
+          <span class="material-symbols-outlined text-sm">expand_more</span>
+        </button>
+        <div class="absolute right-0 top-full mt-2 w-52 bg-surface rounded-xl shadow-lg border border-outline-variant/20 hidden group-hover:block">
+          <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low rounded-t-xl" href="{{ url_for('views.profile') }}">
+            <span class="material-symbols-outlined text-[18px]">manage_accounts</span> My Profile
+          </a>
+          <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.order_history') }}">
+            <span class="material-symbols-outlined text-[18px]">receipt_long</span> Order History
+          </a>
+          <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.rewards') }}">
+            <span class="material-symbols-outlined text-[18px]">workspace_premium</span> Rewards
+          </a>
+          <hr class="border-outline-variant/20 mx-3"/>
+          <button data-action="logout" class="flex items-center gap-2 w-full px-4 py-3 text-sm text-error hover:bg-error-container/10 rounded-b-xl">
+            <span class="material-symbols-outlined text-[18px]">logout</span> Logout
+          </button>
+        </div>
+      </div>
+      {% else %}
+      <a class="px-4 py-2 rounded-full bg-primary text-on-primary text-sm font-bold hover:bg-primary/90 transition-colors" href="{{ url_for('views.login') }}">Login</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+{% endmacro %}
+
+
+{% macro footer() %}
+<footer class="w-full py-16 px-8 mt-20 bg-emerald-50 border-t border-emerald-100">
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-12 max-w-7xl mx-auto">
+    <div>
+      <span class="text-xl font-bold text-emerald-900 mb-4 block font-headline">BuyMint</span>
+      <p class="text-sm text-emerald-800/70 leading-relaxed">Curating the finest organic treasures for your sustainable lifestyle.</p>
+    </div>
+    <div>
+      <h4 class="font-headline font-bold text-emerald-900 mb-6">Company</h4>
+      <div class="flex flex-col gap-3">
+        <a class="text-sm text-emerald-700 hover:text-emerald-950 underline underline-offset-4" href="{{ url_for('views.about') }}">About Us</a>
+        <a class="text-sm text-emerald-700 hover:text-emerald-950 underline underline-offset-4" href="{{ url_for('views.faq') }}">FAQs</a>
+      </div>
+    </div>
+    <div>
+      <h4 class="font-headline font-bold text-emerald-900 mb-6">Legal</h4>
+      <div class="flex flex-col gap-3">
+        <a class="text-sm text-emerald-700 hover:text-emerald-950 underline underline-offset-4" href="{{ url_for('views.terms') }}">Terms of Service</a>
+      </div>
+    </div>
+    <div>
+      <h4 class="font-headline font-bold text-emerald-900 mb-6">Connect</h4>
+      <div class="flex flex-col gap-3">
+        <a class="text-sm text-emerald-700 hover:text-emerald-950 underline underline-offset-4" href="{{ url_for('views.contact') }}">Contact Us</a>
+      </div>
+    </div>
+  </div>
+  <div class="max-w-7xl mx-auto mt-16 pt-8 border-t border-emerald-100/50">
+    <p class="text-sm text-emerald-800/70">© 2024 BuyMint. The Organic Curator.</p>
+  </div>
+</footer>
+{% endmacro %}
+
+
+{% macro bottom_nav(active="home") %}
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-6 pb-8 pt-4 bg-white/90 backdrop-blur-xl shadow-[0_-4px_24px_rgba(0,0,0,0.04)] rounded-t-[3rem] border-t border-emerald-100/20">
+  <a href="{{ url_for('views.home') }}" class="flex flex-col items-center {% if active=='home' %}text-emerald-900{% else %}text-emerald-800/50{% endif %} px-5 py-2">
+    <span class="material-symbols-outlined mb-1 {% if active=='home' %}fill-icon{% endif %}">home</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest">Home</span>
+  </a>
+  <a href="#" class="flex flex-col items-center text-emerald-800/50 px-5 py-2">
+    <span class="material-symbols-outlined mb-1">grid_view</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest">Categories</span>
+  </a>
+  <a href="{{ url_for('views.cart') }}" class="flex flex-col items-center {% if active=='cart' %}text-emerald-900{% else %}text-emerald-800/50{% endif %} px-5 py-2">
+    <span class="material-symbols-outlined mb-1 {% if active=='cart' %}fill-icon{% endif %}">shopping_cart</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest">Cart</span>
+  </a>
+  <a href="{{ url_for('views.favorites') }}" class="flex flex-col items-center {% if active=='fav' %}text-emerald-900{% else %}text-emerald-800/50{% endif %} px-5 py-2">
+    <span class="material-symbols-outlined mb-1 {% if active=='fav' %}fill-icon{% endif %}">favorite</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest">Saved</span>
+  </a>
+  <a href="{{ url_for('views.profile') }}" class="flex flex-col items-center {% if active=='profile' %}text-emerald-900{% else %}text-emerald-800/50{% endif %} px-5 py-2">
+    <span class="material-symbols-outlined mb-1 {% if active=='profile' %}fill-icon{% endif %}">person</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest">Profile</span>
+  </a>
+</nav>
+{% endmacro %}
+
+
+{% macro flash_messages() %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="fixed top-24 right-6 z-50 flex flex-col gap-2">
+  {% for category, message in messages %}
+  <div class="flex items-center gap-3 px-5 py-3 rounded-xl font-medium text-sm shadow-lg
+    {% if category == 'error' %}bg-error-container text-on-error-container
+    {% elif category == 'success' %}bg-primary text-on-primary
+    {% else %}bg-secondary-container text-on-secondary-container{% endif %}">
+    <span class="material-symbols-outlined text-[18px]">
+      {% if category == 'error' %}error{% elif category == 'success' %}check_circle{% else %}info{% endif %}
+    </span>
+    {{ message }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+{% endmacro %}

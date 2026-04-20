@@ -1,0 +1,110 @@
+{% from "macros.html" import head_common, top_nav, footer, bottom_nav with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{{ head_common("My Profile") }}
+</head>
+<body class="bg-background font-body text-on-background">
+
+{{ top_nav(active="profile") }}
+
+<main class="pt-28 pb-32 px-6 max-w-4xl mx-auto">
+
+  <div class="flex items-center gap-6 mb-12">
+    <div class="w-20 h-20 rounded-full bg-primary-container flex items-center justify-center text-3xl font-extrabold text-on-primary-container font-headline">
+      {{ current_user.full_name[0].upper() }}
+    </div>
+    <div>
+      <h1 class="font-headline text-3xl font-extrabold tracking-tighter text-on-surface">{{ current_user.full_name }}</h1>
+      <p class="text-on-surface-variant">{{ current_user.email }}</p>
+      <span class="inline-block mt-1 bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full">{{ current_user.tier }} · {{ current_user.reward_points }} pts</span>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+    <!-- Profile Info -->
+    <div class="bg-surface rounded-2xl p-8 shadow-sm">
+      <h2 class="font-headline text-xl font-bold text-on-surface mb-6">Personal Information</h2>
+      <form id="profile-form" class="space-y-5">
+        <div class="space-y-1">
+          <label class="text-sm font-semibold text-on-surface-variant" for="full_name">Full Name</label>
+          <input id="full_name" name="full_name" type="text" value="{{ current_user.full_name }}"
+                 class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20"/>
+        </div>
+        <div class="space-y-1">
+          <label class="text-sm font-semibold text-on-surface-variant" for="email_display">Email</label>
+          <input id="email_display" type="email" value="{{ current_user.email }}" disabled
+                 class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3 text-sm opacity-60 cursor-not-allowed"/>
+        </div>
+        <div class="space-y-1">
+          <label class="text-sm font-semibold text-on-surface-variant" for="phone">Phone</label>
+          <input id="phone" name="phone" type="tel" value="{{ current_user.phone or '' }}"
+                 class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20" placeholder="+91 98765 43210"/>
+        </div>
+        <div class="space-y-1">
+          <label class="text-sm font-semibold text-on-surface-variant" for="address">Default Address</label>
+          <textarea id="address" name="address" rows="3"
+                    class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 resize-none"
+                    placeholder="Your delivery address…">{{ current_user.address or "" }}</textarea>
+        </div>
+        <button type="submit" class="w-full py-3 bg-primary text-on-primary font-bold rounded-xl hover:bg-primary/90 transition-all active:scale-[0.98]">
+          Save Changes
+        </button>
+      </form>
+    </div>
+
+    <!-- Change Password + Quick Links -->
+    <div class="space-y-6">
+      <div class="bg-surface rounded-2xl p-8 shadow-sm">
+        <h2 class="font-headline text-xl font-bold text-on-surface mb-6">Change Password</h2>
+        <form id="password-form" class="space-y-4">
+          <div class="space-y-1">
+            <label class="text-sm font-semibold text-on-surface-variant" for="old_password">Current Password</label>
+            <input id="old_password" name="old_password" type="password"
+                   class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20" placeholder="••••••••"/>
+          </div>
+          <div class="space-y-1">
+            <label class="text-sm font-semibold text-on-surface-variant" for="new_password">New Password</label>
+            <input id="new_password" name="new_password" type="password" minlength="6"
+                   class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20" placeholder="Min. 6 characters"/>
+          </div>
+          <button type="submit" class="w-full py-3 bg-surface-container-high text-on-surface font-bold rounded-xl hover:bg-surface-container-highest transition-all active:scale-[0.98]">
+            Update Password
+          </button>
+        </form>
+      </div>
+
+      <div class="bg-surface rounded-2xl p-6 shadow-sm space-y-2">
+        <h2 class="font-headline text-lg font-bold text-on-surface mb-4">Quick Links</h2>
+        <a href="{{ url_for('views.order_history') }}" class="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-primary">receipt_long</span>
+          <span class="font-medium text-sm">Order History</span>
+          <span class="material-symbols-outlined text-outline ml-auto text-sm">chevron_right</span>
+        </a>
+        <a href="{{ url_for('views.favorites') }}" class="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-primary">favorite</span>
+          <span class="font-medium text-sm">My Favorites</span>
+          <span class="material-symbols-outlined text-outline ml-auto text-sm">chevron_right</span>
+        </a>
+        <a href="{{ url_for('views.rewards') }}" class="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-primary">workspace_premium</span>
+          <span class="font-medium text-sm">Rewards ({{ current_user.reward_points }} pts)</span>
+          <span class="material-symbols-outlined text-outline ml-auto text-sm">chevron_right</span>
+        </a>
+        <hr class="border-outline-variant/20 my-2"/>
+        <button data-action="logout" class="flex items-center gap-3 p-3 rounded-xl hover:bg-error-container/10 transition-colors w-full text-left">
+          <span class="material-symbols-outlined text-error">logout</span>
+          <span class="font-medium text-sm text-error">Logout</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+{{ footer() }}
+{{ bottom_nav(active="profile") }}
+
+</body>
+</html>

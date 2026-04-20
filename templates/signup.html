@@ -1,0 +1,91 @@
+{% from "macros.html" import head_common with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{{ head_common("Sign Up") }}
+</head>
+<body class="bg-background font-body text-on-surface">
+
+<nav class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md">
+  <div class="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
+    <a class="text-2xl font-bold tracking-tighter text-emerald-900 font-headline" href="{{ url_for('views.index') }}">BuyMint</a>
+    <a class="text-sm font-medium text-on-surface-variant hover:text-primary transition-colors" href="{{ url_for('views.login') }}">Already have an account? <span class="font-bold text-primary">Login</span></a>
+  </div>
+</nav>
+
+<main class="min-h-screen flex items-stretch pt-20">
+
+  <!-- Visual Side -->
+  <div class="hidden lg:flex w-1/2 relative overflow-hidden bg-surface-container-low">
+    <div class="absolute inset-0 z-10 bg-gradient-to-t from-primary/40 to-transparent"></div>
+    <img alt="Vibrant green monstera leaves" class="w-full h-full object-cover"
+         src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_XfYfdKHmgFs1fI7QkeXlu5ePyzLujae-C5-ay1vX5U0_VbLn9boksMJedUd541kEFfDSghgpGhBTADGgalf2h7Rpg8xv5Gm1Wcp-lnlAcFrS5GKCBGrXpAZzNYYxovAUgVDTBZ9SG7r9l-BGTokJpwpJJtXVISfjBGl7rbI5TuXnMHXH88kuJcLd1CnDaNp5VWFsFutNi10qlvoUJClsco57sVto03fcxuQb4bU57ESuFzAElLbXx0L9weXlQt7Zk34CzUMGPQ"/>
+    <div class="absolute bottom-16 left-16 z-20 max-w-md">
+      <div class="bg-surface/80 backdrop-blur-md p-8 rounded-xl shadow-sm">
+        <span class="text-primary font-bold tracking-widest text-xs uppercase mb-2 block">The Organic Curator</span>
+        <h2 class="text-3xl font-extrabold text-on-surface mb-4 leading-tight font-headline">Rooted in local craft, grown by community.</h2>
+        <p class="text-on-surface-variant leading-relaxed">Join a network of conscious consumers and local artisans dedicated to sustainable living.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form Side -->
+  <div class="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-16 bg-surface">
+    <div class="w-full max-w-md">
+
+      <header class="mb-10">
+        <h1 class="text-4xl font-extrabold text-on-surface tracking-tight mb-2 font-headline">Create Account</h1>
+        <p class="text-on-surface-variant font-medium">Begin your journey with BuyMint.</p>
+      </header>
+
+      <!-- Auth feedback -->
+      <div id="auth-message" class="hidden mb-6"></div>
+
+      <form id="signup-form" class="space-y-6" novalidate>
+        <div class="space-y-2">
+          <label class="block text-sm font-semibold text-on-surface ml-1" for="full_name">Full Name</label>
+          <input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all placeholder:text-stone-400"
+                 id="full_name" name="full_name" placeholder="Jane Doe" required type="text"/>
+        </div>
+
+        <div class="space-y-2">
+          <label class="block text-sm font-semibold text-on-surface ml-1" for="email">Email Address</label>
+          <input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all placeholder:text-stone-400"
+                 id="email" name="email" placeholder="hello@example.com" required type="email"/>
+        </div>
+
+        <div class="space-y-2">
+          <label class="block text-sm font-semibold text-on-surface ml-1" for="password">Password</label>
+          <input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-4 focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all placeholder:text-stone-400"
+                 id="password" name="password" placeholder="Min. 6 characters" required type="password" minlength="6"/>
+        </div>
+
+        <div class="flex items-center gap-3 py-2">
+          <input class="rounded border-outline-variant text-primary focus:ring-primary w-5 h-5"
+                 id="terms" name="terms" required type="checkbox"/>
+          <label class="text-xs text-on-surface-variant leading-tight" for="terms">
+            I agree to the <a class="text-primary font-bold hover:underline" href="{{ url_for('views.terms') }}">Terms of Service</a>
+          </label>
+        </div>
+
+        <button class="w-full bg-primary text-on-primary font-bold py-4 rounded-xl shadow-lg shadow-primary/10 hover:bg-primary/90 transition-all active:scale-[0.98]" type="submit">
+          Sign Up
+        </button>
+      </form>
+
+      <div class="mt-8 pt-8 border-t border-surface-container-high text-center">
+        <p class="text-on-surface-variant font-medium">
+          Already have an account?
+          <a class="text-primary font-bold hover:underline ml-1" href="{{ url_for('views.login') }}">Login</a>
+        </p>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+{% from "macros.html" import footer with context %}
+{{ footer() }}
+
+</body>
+</html>

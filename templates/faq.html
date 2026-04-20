@@ -1,0 +1,89 @@
+{% from "macros.html" import head_common, top_nav, footer, bottom_nav with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{{ head_common("FAQ") }}
+<style>
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] .chevron { transform: rotate(180deg); }
+</style>
+</head>
+<body class="bg-background font-body text-on-background">
+
+{{ top_nav() }}
+
+<main class="pt-28 pb-32 px-6">
+  <div class="max-w-3xl mx-auto">
+
+    <div class="mb-16 text-center">
+      <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-tertiary-container text-on-tertiary-container text-xs font-bold tracking-widest uppercase mb-6">
+        Help Centre
+      </div>
+      <h1 class="font-headline text-5xl font-extrabold tracking-tighter text-on-surface mb-4">Frequently Asked Questions</h1>
+      <p class="text-on-surface-variant text-lg">Everything you need to know about BuyMint.</p>
+    </div>
+
+    {% set faqs = [
+      ("Ordering & Payments", [
+        ("How do I place an order?", "Browse any category, add items to your cart, and click 'Place Order' at checkout. You'll need a free account to complete your purchase."),
+        ("What payment methods do you accept?", "We accept all major debit/credit cards, UPI, net banking, and wallet payments via our secure payment gateway."),
+        ("Can I use multiple promo codes?", "Only one promo code can be applied per order. Check our current codes: MINT20, FREESHIP, ORGANIC10."),
+        ("Is my payment information secure?", "Yes. All transactions are encrypted with TLS 1.3. We never store card details on our servers."),
+      ]),
+      ("Shipping & Delivery", [
+        ("How long does delivery take?", "Standard delivery takes 3–5 business days. Express (1–2 days) is available for select pin codes at checkout."),
+        ("Is delivery free?", "Free delivery on all orders above ₹500. Below that, a flat ₹49 delivery fee applies."),
+        ("Do you ship across India?", "Yes! We deliver to 19,000+ pin codes across India. Enter your pin code at checkout to confirm serviceability."),
+      ]),
+      ("Returns & Refunds", [
+        ("What is your return policy?", "We offer hassle-free returns within 7 days of delivery for most products. Perishable items (fresh produce, dining) are non-returnable."),
+        ("How long do refunds take?", "Approved refunds are processed within 5–7 business days back to your original payment method."),
+      ]),
+      ("Organic Certification", [
+        ("How do you verify products are organic?", "Every product undergoes a 3-step audit: supplier documentation review, third-party lab testing, and annual farm inspections. We display certification numbers on each product page."),
+        ("What certifications do you accept?", "We accept NPOP (India Organic), USDA Organic, EU Organic, and GOTS for textiles."),
+      ]),
+      ("Rewards", [
+        ("How do I earn reward points?", "You earn 1 Mint Point for every ₹10 spent. Points are credited automatically after order delivery."),
+        ("When do my points expire?", "Points are valid for 12 months from the date of earning. Tier status is reassessed every 3 months."),
+      ]),
+    ] %}
+
+    <div class="space-y-6">
+      {% for section, questions in faqs %}
+      <div>
+        <h2 class="font-headline text-xl font-bold text-on-surface mb-4 pl-2 border-l-4 border-primary">{{ section }}</h2>
+        <div class="space-y-3">
+          {% for q, a in questions %}
+          <details class="bg-surface rounded-2xl shadow-sm group">
+            <summary class="flex items-center justify-between px-6 py-5 cursor-pointer select-none">
+              <span class="font-semibold text-on-surface text-sm pr-4">{{ q }}</span>
+              <span class="material-symbols-outlined text-outline flex-shrink-0 chevron transition-transform duration-200">expand_more</span>
+            </summary>
+            <div class="px-6 pb-5 text-on-surface-variant text-sm leading-relaxed border-t border-outline-variant/20 pt-4">
+              {{ a }}
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="mt-16 p-8 bg-surface-container-low rounded-2xl text-center">
+      <h3 class="font-headline text-xl font-bold text-on-surface mb-3">Still have questions?</h3>
+      <p class="text-on-surface-variant text-sm mb-6">Our support team typically responds within 4 hours on business days.</p>
+      <a href="{{ url_for('views.contact') }}" class="inline-flex items-center gap-2 px-8 py-3 bg-primary text-on-primary font-bold rounded-xl hover:bg-primary/90 transition-all">
+        <span class="material-symbols-outlined text-[18px]">chat</span> Contact Support
+      </a>
+    </div>
+
+  </div>
+</main>
+
+{{ footer() }}
+{{ bottom_nav() }}
+
+</body>
+</html>

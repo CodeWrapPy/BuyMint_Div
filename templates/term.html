@@ -1,0 +1,95 @@
+{% from "macros.html" import head_common, top_nav, footer, bottom_nav with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{{ head_common("Terms & Conditions") }}
+<style>
+  .legal-content p { margin-bottom: 1.5rem; line-height: 1.7; color: #44483f; }
+  .legal-content h2 { margin-top: 3rem; margin-bottom: 1rem; font-weight: 700; font-size: 1.5rem; font-family: 'Plus Jakarta Sans'; color: #1b1c19; }
+</style>
+</head>
+<body class="bg-background font-body text-on-background">
+
+{{ top_nav() }}
+
+<main class="pt-32 pb-20 px-6">
+  <div class="max-w-4xl mx-auto">
+
+    <div class="mb-16">
+      <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-tertiary-container text-on-tertiary-container text-xs font-bold tracking-widest uppercase mb-6">
+        Legal Documentation
+      </div>
+      <h1 class="font-headline text-5xl md:text-6xl font-extrabold tracking-tighter text-on-surface mb-4">Terms &amp; Conditions</h1>
+      <p class="text-on-surface-variant text-lg">Last updated: October 24, 2024</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-12">
+      <!-- Sticky TOC -->
+      <aside class="md:col-span-4 hidden md:block">
+        <div class="sticky top-40 space-y-4">
+          <p class="text-xs font-bold uppercase tracking-widest text-outline mb-6">Table of Contents</p>
+          <nav class="flex flex-col gap-4 border-l-2 border-surface-variant">
+            {% set sections = [
+              ("acceptance",        "1. Acceptance of Terms"),
+              ("user-conduct",      "2. User Conduct"),
+              ("intellectual-property","3. Intellectual Property"),
+              ("limitations",       "4. Limitations of Liability"),
+              ("governing-law",     "5. Governing Law"),
+            ] %}
+            {% for anchor, label in sections %}
+            <a class="pl-6 py-1 border-l-2 -ml-[2px] border-transparent text-on-surface-variant hover:text-primary hover:border-primary transition-all text-sm font-medium"
+               href="#{{ anchor }}">{{ label }}</a>
+            {% endfor %}
+          </nav>
+        </div>
+      </aside>
+
+      <!-- Legal Body -->
+      <div class="md:col-span-8 legal-content">
+        <section class="bg-surface-container-low p-8 md:p-12 rounded-lg mb-12" id="acceptance">
+          <p class="text-on-surface-variant italic mb-6">Please read these Terms &amp; Conditions carefully before using the BuyMint marketplace platform.</p>
+          <h2>1. Acceptance of Terms</h2>
+          <p>By accessing or using BuyMint, you agree to be bound by these Terms and our Privacy Policy. If you do not agree to all these terms, do not use the service. Our platform serves as a curated marketplace connecting organic producers with conscious consumers. We reserve the right to modify these terms at any time, with changes becoming effective immediately upon posting.</p>
+        </section>
+
+        <section id="user-conduct">
+          <h2>2. User Conduct</h2>
+          <p>As a user of BuyMint, you agree to use the platform only for lawful purposes. You are prohibited from posting or transmitting any material that is defamatory, offensive, or infringing upon the rights of others. We maintain a zero-tolerance policy for fraudulent behaviour regarding the "Organic" certification of products sold on our platform.</p>
+          <div class="my-8 p-6 bg-surface-container-highest rounded-xl border-l-4 border-primary">
+            <p class="text-sm font-semibold mb-0 italic">"BuyMint reserves the right to suspend any account found to be falsifying organic verification documents without prior notice."</p>
+          </div>
+        </section>
+
+        <section id="intellectual-property">
+          <h2>3. Intellectual Property</h2>
+          <p>The Service and its original content, features, and functionality are owned by BuyMint and its licensors and are protected by international copyright, trademark, patent, trade secret, and other intellectual property laws.</p>
+        </section>
+
+        <div class="my-12 -mx-4 md:-mx-12 overflow-hidden rounded-xl h-64">
+          <img alt="Organic produce" class="w-full h-full object-cover"
+               src="https://images.unsplash.com/photo-1506802913710-b7439b7f6d6d?w=800"/>
+        </div>
+
+        <section id="limitations">
+          <h2>4. Limitations of Liability</h2>
+          <p>In no event shall BuyMint, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential or punitive damages resulting from your access to or use of the platform.</p>
+        </section>
+
+        <section id="governing-law">
+          <h2>5. Governing Law</h2>
+          <p>These Terms shall be governed and construed in accordance with the laws of the jurisdiction in which BuyMint is registered, without regard to its conflict of law provisions.</p>
+        </section>
+
+        <div class="mt-16 pt-8 border-t border-outline-variant">
+          <p class="text-sm text-on-surface-variant">Questions? Contact our legal department at <a href="mailto:legal@buymint.organic" class="text-primary font-semibold hover:underline">legal@buymint.organic</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+{{ footer() }}
+{{ bottom_nav() }}
+
+</body>
+</html>

@@ -1,0 +1,86 @@
+{% from "macros.html" import head_common, top_nav, footer, bottom_nav with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{{ head_common("About Us") }}
+</head>
+<body class="bg-background font-body text-on-background">
+
+{{ top_nav() }}
+
+<main class="pt-28 pb-32">
+
+  <!-- Hero -->
+  <section class="px-8 max-w-7xl mx-auto py-16">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+      <div>
+        <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-tertiary-container text-on-tertiary-container text-xs font-bold tracking-widest uppercase mb-6">
+          Our Story
+        </div>
+        <h1 class="font-headline text-5xl md:text-6xl font-extrabold tracking-tighter text-on-surface mb-6 leading-tight">
+          Born from a<br/>love of the earth.
+        </h1>
+        <p class="text-on-surface-variant text-lg leading-relaxed mb-8">
+          BuyMint started in 2024 with a simple conviction: ethical living should be effortless and beautiful. We curate only the finest certified organic products — from farm-fresh pantry staples to sustainable fashion — so you never have to compromise.
+        </p>
+        <div class="flex gap-8">
+          <div>
+            <p class="font-headline text-3xl font-extrabold text-primary">10k+</p>
+            <p class="text-sm text-on-surface-variant">Happy Members</p>
+          </div>
+          <div>
+            <p class="font-headline text-3xl font-extrabold text-primary">500+</p>
+            <p class="text-sm text-on-surface-variant">Products Curated</p>
+          </div>
+          <div>
+            <p class="font-headline text-3xl font-extrabold text-primary">50+</p>
+            <p class="text-sm text-on-surface-variant">Partner Farms</p>
+          </div>
+        </div>
+      </div>
+      <div class="h-96 rounded-3xl overflow-hidden shadow-2xl">
+        <img alt="BuyMint team at an organic farm" class="w-full h-full object-cover"
+             src="https://images.unsplash.com/photo-1464226184884-fa280b87c399?w=800"/>
+      </div>
+    </div>
+  </section>
+
+  <!-- Values -->
+  <section class="px-8 max-w-7xl mx-auto py-16 bg-surface-container-low rounded-3xl my-8">
+    <div class="text-center mb-14">
+      <h2 class="font-headline text-4xl font-extrabold tracking-tighter text-on-surface mb-4">What We Stand For</h2>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      {% set values = [
+        ("eco", "Certified Organic", "Every product on BuyMint carries verified organic certification. No greenwashing, ever."),
+        ("diversity_3", "Community First", "We partner directly with small farms and local artisans, ensuring fair trade and livelihoods."),
+        ("recycling", "Planet Positive", "Minimal packaging, carbon-offset shipping, and a commitment to zero landfill by 2026."),
+      ] %}
+      {% for icon, title, desc in values %}
+      <div class="bg-surface rounded-2xl p-8 shadow-sm text-center">
+        <div class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
+          <span class="material-symbols-outlined text-3xl text-primary">{{ icon }}</span>
+        </div>
+        <h3 class="font-headline text-xl font-bold text-on-surface mb-3">{{ title }}</h3>
+        <p class="text-on-surface-variant leading-relaxed text-sm">{{ desc }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="px-8 max-w-3xl mx-auto py-16 text-center">
+    <h2 class="font-headline text-3xl font-bold text-on-surface mb-4">Shop with purpose.</h2>
+    <p class="text-on-surface-variant mb-8">Every purchase supports organic farmers and a healthier planet.</p>
+    <a href="{{ url_for('views.home') }}" class="px-10 py-4 bg-primary text-on-primary font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+      Browse the Collection
+    </a>
+  </section>
+
+</main>
+
+{{ footer() }}
+{{ bottom_nav() }}
+
+</body>
+</html>
