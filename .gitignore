@@ -1,0 +1,45 @@
+# ── Python ───────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+# ── Virtual environments ─────────────────────────
+venv/
+env/
+.venv/
+.env/
+
+# ── Flask / SQLite ───────────────────────────────
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Environment / secrets ────────────────────────
+.env
+# Keep the example file in source control:
+!.env.example
+
+# ── macOS ────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── IDEs ─────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Build / dist ─────────────────────────────────
+dist/
+build/
+*.egg-info/
+
+# ── Testing ──────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/

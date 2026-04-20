@@ -2,13 +2,13 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from models import CartItem, Product, Order, OrderItem, PromoCode
 from extensions import db
-from datetime import datetime
 
 cart_api = Blueprint("cart_api", __name__, url_prefix="/api/cart")
 
-DELIVERY_THRESHOLD = 500.0   # free delivery above this amount
+DELIVERY_THRESHOLD = 500.0    # free delivery above this amount
 DELIVERY_FEE       = 49.0
-POINTS_PER_RUPEE   = 0.1     # reward points earned per ₹ spent
+POINTS_PER_RUPEE   = 0.1      # reward points earned per ₹ spent
+MAX_QUANTITY       = 99       # sanity cap on per-item quantity
 
 
 def _ok(data, status=200):
@@ -17,6 +17,22 @@ def _ok(data, status=200):
 
 def _err(message, status=400):
     return jsonify({"success": False, "error": message}), status
+
+
+def _parse_quantity(raw, default=1) -> tuple[int, str]:
+    """
+    Safely parse an integer quantity from untrusted input.
+    Returns (quantity, error_message). error_message is "" on success.
+    """
+    try:
+        qty = int(raw if raw is not None else default)
+    except (ValueError, TypeError):
+        return 0, "quantity must be an integer."
+    if qty < 0:
+        return 0, "quantity cannot be negative."
+    if qty > MAX_QUANTITY:
+        return 0, f"quantity cannot exceed {MAX_QUANTITY}."
+    return qty, ""
 
 
 def _cart_summary(user_id: int) -> dict:
@@ -32,6 +48,11 @@ def _cart_summary(user_id: int) -> dict:
 
     return {
         "items":        [i.to_dict() for i in items],
+        # BUG FIX #11: item_count now returns the total quantity across all
+        # line items (e.g. 3 tees + 2 mugs = 5), matching what the JS
+        # Cart._updateBadges() uses to display the badge count.
+        # Previously views.py used len(items) (number of distinct products)
+        # which disagreed with the badge count shown after JS cart operations.
         "item_count":   sum(i.quantity for i in items),
         "subtotal":     round(subtotal, 2),
         "delivery_fee": delivery_fee,
@@ -52,10 +73,18 @@ def get_cart():
 def add_to_cart():
     data       = request.get_json(silent=True) or {}
     product_id = data.get("product_id")
-    quantity   = int(data.get("quantity", 1))
 
     if not product_id:
         return _err("product_id is required.")
+
+    # BUG FIX #12: int(data.get("quantity", 1)) raised ValueError if the client
+    # sent a non-numeric string (e.g. "quantity": "abc"), crashing the server
+    # with a 500 instead of returning a clean 400.
+    quantity, qty_err = _parse_quantity(data.get("quantity"), default=1)
+    if qty_err:
+        return _err(f"Invalid quantity: {qty_err}")
+    if quantity < 1:
+        return _err("quantity must be at least 1.")
 
     product = Product.query.filter_by(id=product_id, is_active=True).first()
     if not product:
@@ -73,6 +102,8 @@ def add_to_cart():
             return _err(f"Only {product.stock} units available.")
         item.quantity = new_qty
     else:
+        if quantity > product.stock:
+            return _err(f"Only {product.stock} units available.")
         item = CartItem(
             user_id=current_user.id,
             product_id=product_id,
@@ -88,8 +119,12 @@ def add_to_cart():
 @cart_api.route("/<int:item_id>", methods=["PUT"])
 @login_required
 def update_cart_item(item_id):
-    data     = request.get_json(silent=True) or {}
-    quantity = int(data.get("quantity", 1))
+    data = request.get_json(silent=True) or {}
+
+    # BUG FIX #13: Same int() crash risk as add_to_cart — fixed via _parse_quantity.
+    quantity, qty_err = _parse_quantity(data.get("quantity"), default=1)
+    if qty_err:
+        return _err(f"Invalid quantity: {qty_err}")
 
     item = CartItem.query.filter_by(id=item_id, user_id=current_user.id).first()
     if not item:
@@ -131,33 +166,26 @@ def clear_cart():
 @cart_api.route("/promo", methods=["POST"])
 @login_required
 def validate_promo():
-    data  = request.get_json(silent=True) or {}
-    code  = (data.get("code") or "").strip().upper()
+    data = request.get_json(silent=True) or {}
+    code = (data.get("code") or "").strip().upper()
 
     if not code:
         return _err("Promo code is required.")
 
-    promo = PromoCode.query.filter_by(code=code, is_active=True).first()
+    promo = PromoCode.query.filter_by(code=code).first()
     if not promo:
         return _err("Invalid or expired promo code.")
-    if promo.expires_at and promo.expires_at < datetime.utcnow():
-        return _err("This promo code has expired.")
-    if promo.used_count >= promo.max_uses:
-        return _err("This promo code has reached its usage limit.")
 
     summary = _cart_summary(current_user.id)
-    if summary["subtotal"] < promo.min_order_value:
-        return _err(f"Minimum order of ₹{promo.min_order_value:.0f} required for this code.")
+    valid, err = promo.is_valid(summary["subtotal"])
+    if not valid:
+        return _err(err)
 
-    if promo.discount_type == "percent":
-        discount = round(summary["subtotal"] * promo.discount_value / 100, 2)
-    else:
-        discount = min(promo.discount_value, summary["subtotal"])
-
+    discount = promo.compute_discount(summary["subtotal"])
     return _ok({
-        "valid":    True,
-        "discount": discount,
-        "promo":    promo.to_dict(),
+        "valid":     True,
+        "discount":  discount,
+        "promo":     promo.to_dict(),
         "new_total": round(summary["total"] - discount, 2),
     })
 
@@ -180,46 +208,70 @@ def checkout():
     discount = 0.0
     promo    = None
     if code:
-        promo = PromoCode.query.filter_by(code=code, is_active=True).first()
-        if promo and promo.used_count < promo.max_uses:
-            if promo.discount_type == "percent":
-                discount = round(summary["subtotal"] * promo.discount_value / 100, 2)
-            else:
-                discount = min(promo.discount_value, summary["subtotal"])
-            promo.used_count += 1
+        promo = PromoCode.query.filter_by(code=code).first()
+        if promo:
+            # BUG FIX #14: checkout() previously only checked used_count < max_uses
+            # and silently skipped the expires_at check that validate_promo() did.
+            # This meant an expired promo was rejected at validation time but still
+            # applied at checkout — a meaningful discount bypass.
+            # Now we use the centralised promo.is_valid() which checks all three
+            # conditions: is_active, expires_at, max_uses, and min_order_value.
+            valid, err = promo.is_valid(summary["subtotal"])
+            if not valid:
+                return _err(f"Promo code issue at checkout: {err}")
+            discount = promo.compute_discount(summary["subtotal"])
 
     final_total = round(summary["total"] - discount, 2)
 
-    order = Order(
-        user_id          = current_user.id,
-        total_amount     = final_total,
-        discount_amount  = discount,
-        delivery_fee     = summary["delivery_fee"],
-        shipping_address = address,
-        promo_code       = code or None,
-        status           = "confirmed",
-    )
-    db.session.add(order)
-    db.session.flush()   # get order.id before commit
-
-    for ci in CartItem.query.filter_by(user_id=current_user.id).all():
-        oi = OrderItem(
-            order_id   = order.id,
-            product_id = ci.product_id,
-            quantity   = ci.quantity,
-            unit_price = ci.product.price,
+    try:
+        order = Order(
+            user_id          = current_user.id,
+            total_amount     = final_total,
+            discount_amount  = discount,
+            delivery_fee     = summary["delivery_fee"],
+            shipping_address = address,
+            promo_code       = code or None,
+            status           = "confirmed",
         )
-        # Decrement stock
-        ci.product.stock = max(0, ci.product.stock - ci.quantity)
-        db.session.add(oi)
-        db.session.delete(ci)
+        db.session.add(order)
+        db.session.flush()   # get order.id before committing
 
-    # Award reward points
-    points_earned = int(final_total * POINTS_PER_RUPEE)
-    current_user.reward_points += points_earned
-    current_user.update_tier()
+        cart_items = CartItem.query.filter_by(user_id=current_user.id).all()
+        for ci in cart_items:
+            # BUG FIX #15: Stock was decremented without re-checking availability.
+            # Between "add to cart" and "checkout", another user could have bought
+            # the last unit.  We now enforce the check at checkout time.
+            if ci.product.stock < ci.quantity:
+                db.session.rollback()
+                return _err(
+                    f"'{ci.product.name}' now has only {ci.product.stock} unit(s) "
+                    f"in stock. Please update your cart."
+                )
+            oi = OrderItem(
+                order_id   = order.id,
+                product_id = ci.product_id,
+                quantity   = ci.quantity,
+                unit_price = ci.product.price,
+            )
+            ci.product.stock -= ci.quantity
+            db.session.add(oi)
+            db.session.delete(ci)
 
-    db.session.commit()
+        # Increment promo usage counter only on a successful checkout
+        if promo:
+            promo.used_count += 1
+
+        # Award reward points
+        points_earned = int(final_total * POINTS_PER_RUPEE)
+        current_user.reward_points += points_earned
+        current_user.update_tier()
+
+        db.session.commit()
+
+    except Exception:
+        db.session.rollback()
+        raise
+
     return _ok({
         "message":       "Order placed successfully!",
         "order":         order.to_dict(),

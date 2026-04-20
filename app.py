@@ -1,5 +1,7 @@
 import os
+
 from flask import Flask
+
 from config import config_map
 from extensions import db, login_manager, bcrypt, csrf
 
@@ -20,7 +22,9 @@ def create_app(env: str = None) -> Flask:
 
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        # BUG FIX #1: User.query.get() is deprecated in SQLAlchemy 2.x and
+        # raises LegacyAPIWarning / may crash. Use db.session.get() instead.
+        return db.session.get(User, int(user_id))
 
     # ── Inject current_user into ALL template contexts ───────
     # Flask-Login's current_user is available in normal templates
@@ -34,17 +38,18 @@ def create_app(env: str = None) -> Flask:
 
     # ── Blueprints – Page Views ──────────────────────────────
     from routes.views import views
+
     app.register_blueprint(views)
 
     # ── Blueprints – REST API ────────────────────────────────
-    from routes.api.auth      import auth_api
-    from routes.api.products  import products_api
-    from routes.api.cart      import cart_api
+    from routes.api.auth import auth_api
+    from routes.api.products import products_api
+    from routes.api.cart import cart_api
     from routes.api.favorites import favorites_api
-    from routes.api.orders    import orders_api
-    from routes.api.profile   import profile_api
-    from routes.api.contact   import contact_api
-    from routes.api.rewards   import rewards_api
+    from routes.api.orders import orders_api
+    from routes.api.profile import profile_api
+    from routes.api.contact import contact_api
+    from routes.api.rewards import rewards_api
 
     for bp in (
         auth_api, products_api, cart_api,
@@ -65,7 +70,8 @@ def create_app(env: str = None) -> Flask:
 
 def _seed_if_empty():
     """Insert sample data only on a fresh database."""
-    from models import Product, PromoCode
+    from models import Product
+
     if Product.query.first():
         return
 
@@ -76,4 +82,8 @@ def _seed_if_empty():
 # ── Run ─────────────────────────────────────────────────────
 if __name__ == "__main__":
     flask_app = create_app()
-    flask_app.run(debug=True, port=5000)
+    # BUG FIX #2: debug=True was hardcoded, which means the app always ran in
+    # debug mode even in production. Now it reads from the Flask config,
+    # which is set by FLASK_ENV / config_map (DevelopmentConfig → DEBUG=True,
+    # ProductionConfig → DEBUG=False).
+    flask_app.run(debug=flask_app.config.get("DEBUG", False), port=5000)

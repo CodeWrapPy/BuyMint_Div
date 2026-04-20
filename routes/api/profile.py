@@ -24,19 +24,31 @@ def get_profile():
 def update_profile():
     data = request.get_json(silent=True) or {}
 
-    full_name = (data.get("full_name") or "").strip()
-    phone     = (data.get("phone") or "").strip()
-    address   = (data.get("address") or "").strip()
-    avatar    = (data.get("avatar_url") or "").strip()
+    # BUG FIX #18: The old implementation only updated a field when the new value
+    # was truthy, meaning users could never blank out their phone number or address
+    # once set (sending "" silently did nothing).
+    #
+    # Fix: use a sentinel approach — only skip the key entirely if it is absent
+    # from the JSON body (i.e. the caller didn't mention it at all).  An
+    # explicitly supplied empty string IS a valid "please clear this field".
+    #
+    # full_name is the exception: we never allow it to be cleared to "" because
+    # it is a non-nullable DB column and a required display name.
 
-    if full_name:
+    if "full_name" in data:
+        full_name = (data["full_name"] or "").strip()
+        if not full_name:
+            return _err("Full name cannot be empty.")
         current_user.full_name = full_name
-    if phone:
-        current_user.phone = phone
-    if address:
-        current_user.address = address
-    if avatar:
-        current_user.avatar_url = avatar
+
+    if "phone" in data:
+        current_user.phone = (data["phone"] or "").strip() or None
+
+    if "address" in data:
+        current_user.address = (data["address"] or "").strip() or None
+
+    if "avatar_url" in data:
+        current_user.avatar_url = (data["avatar_url"] or "").strip() or None
 
     db.session.commit()
     return _ok({"message": "Profile updated.", "user": current_user.to_dict()})
@@ -53,6 +65,8 @@ def change_password():
         return _err("Current password is incorrect.")
     if len(new_password) < 6:
         return _err("New password must be at least 6 characters.")
+    if old_password == new_password:
+        return _err("New password must be different from the current password.")
 
     current_user.set_password(new_password)
     db.session.commit()

@@ -6,17 +6,30 @@
 // ─── API Helper ──────────────────────────────────────────────
 const API = {
   async _fetch(url, options = {}) {
-    const res = await fetch(url, {
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      ...options,
-    });
-    const data = await res.json();
-    return { ok: res.ok, status: res.status, data };
+    // BUG FIX #21: No try/catch around fetch() — any network error (offline,
+    // timeout, CORS rejection) threw an unhandled Promise rejection and left
+    // every button that called Cart/Auth/Favorites silently broken with no
+    // user-visible feedback.  Now we catch and surface a friendly error.
+    try {
+      const res  = await fetch(url, {
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        ...options,
+      });
+      const data = await res.json();
+      return { ok: res.ok, status: res.status, data };
+    } catch (err) {
+      console.error("Network error:", err);
+      return {
+        ok: false,
+        status: 0,
+        data: { error: "Network error. Please check your connection and try again." },
+      };
+    }
   },
-  get: (url)           => API._fetch(url, { method: "GET" }),
-  post: (url, body)    => API._fetch(url, { method: "POST",   body: JSON.stringify(body) }),
-  put: (url, body)     => API._fetch(url, { method: "PUT",    body: JSON.stringify(body) }),
+  get:    (url)        => API._fetch(url, { method: "GET" }),
+  post:   (url, body)  => API._fetch(url, { method: "POST",   body: JSON.stringify(body) }),
+  put:    (url, body)  => API._fetch(url, { method: "PUT",    body: JSON.stringify(body) }),
   delete: (url, body)  => API._fetch(url, { method: "DELETE", body: body ? JSON.stringify(body) : undefined }),
 };
 
@@ -53,7 +66,22 @@ const Toast = {
       transform:translateX(120%);transition:transform .3s ease;max-width:360px;
       font-family:'Inter',sans-serif;
     `;
-    toast.innerHTML = `<span class="material-symbols-outlined" style="font-size:20px">${icons[type]||"info"}</span>${message}`;
+
+    // BUG FIX #22: Toast.show() was building its message via innerHTML with
+    // the raw message string, which was also used to display API error text.
+    // A malicious server response (or a compromised API call) could inject
+    // arbitrary HTML/JS via that error string → XSS.
+    // Fix: create the icon element normally, then set the text via a text node
+    // so no HTML interpretation happens on the message content.
+    const icon = document.createElement("span");
+    icon.className = "material-symbols-outlined";
+    icon.style.fontSize = "20px";
+    icon.textContent = icons[type] || "info";
+
+    const text = document.createTextNode(message);
+    toast.appendChild(icon);
+    toast.appendChild(text);
+
     container.appendChild(toast);
 
     requestAnimationFrame(() => { toast.style.transform = "translateX(0)"; });
@@ -80,7 +108,6 @@ const Cart = {
       Toast.success("Added to cart!");
       Cart._updateBadges(data.cart?.item_count ?? 0);
     } else {
-      // If not logged in, redirect
       if (data.error && data.error.toLowerCase().includes("log in")) {
         Toast.info("Please log in to add items to your cart.");
         setTimeout(() => { window.location.href = "/login"; }, 1500);
@@ -130,7 +157,9 @@ const Favorites = {
       Toast.success(isFav ? "Added to favorites!" : "Removed from favorites.");
       if (btn) {
         btn.querySelector(".material-symbols-outlined").style.fontVariationSettings =
-          isFav ? "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24" : "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24";
+          isFav
+            ? "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24"
+            : "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24";
       }
     } else {
       if (data.error && data.error.toLowerCase().includes("log in")) {
@@ -167,6 +196,45 @@ const Contact = {
   },
 };
 
+// ─── Safe HTML helpers ───────────────────────────────────────
+/**
+ * Escape a string so it is safe to inject into innerHTML contexts.
+ * Used anywhere we build an HTML string that must include user/API-sourced text.
+ */
+function _escHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * BUG FIX #23: Both the login and signup error message boxes were built with:
+ *   msgBox.innerHTML = `...<span>...</span> ${data.error}`
+ * If data.error contained any HTML characters, the browser would parse them,
+ * giving a malicious server response (or network MITM) a foothold for XSS.
+ * _setAuthError() now escapes the error string before inserting it.
+ */
+function _setAuthError(msgBox, message) {
+  msgBox.className =
+    "mb-4 p-4 rounded-xl text-sm font-medium flex items-center gap-2 " +
+    "bg-red-50 text-red-700 border border-red-100";
+  msgBox.innerHTML =
+    `<span class="material-symbols-outlined">error</span> ${_escHtml(message)}`;
+  msgBox.classList.remove("hidden");
+}
+
+function _setAuthSuccess(msgBox, message) {
+  msgBox.className =
+    "mb-4 p-4 rounded-xl text-sm font-medium flex items-center gap-2 " +
+    "bg-emerald-50 text-emerald-700";
+  msgBox.innerHTML =
+    `<span class="material-symbols-outlined">check_circle</span> ${_escHtml(message)}`;
+  msgBox.classList.remove("hidden");
+}
+
 // ─── Login Form Handler ──────────────────────────────────────
 function initLoginForm() {
   const form = document.getElementById("login-form");
@@ -196,27 +264,22 @@ function initLoginForm() {
     const msgBox   = document.getElementById("auth-message");
 
     if (msgBox) msgBox.classList.add("hidden");
-    btn.disabled = true;
+    btn.disabled    = true;
     btn.textContent = "Verifying…";
 
     const { ok, data } = await Auth.login(email, password, remember);
 
     if (ok) {
-      if (msgBox) {
-        msgBox.className = "mb-4 p-4 rounded-xl text-sm font-medium flex items-center gap-2 bg-emerald-50 text-emerald-700";
-        msgBox.innerHTML = `<span class="material-symbols-outlined">check_circle</span> Login successful! Redirecting…`;
-        msgBox.classList.remove("hidden");
-      }
+      if (msgBox) _setAuthSuccess(msgBox, "Login successful! Redirecting…");
       setTimeout(() => { window.location.href = "/home"; }, 900);
     } else {
       btn.disabled = false;
       btn.innerHTML = `Login <span class="material-symbols-outlined text-[20px]">arrow_forward</span>`;
+      const errMsg = data.error || "Login failed.";
       if (msgBox) {
-        msgBox.className = "mb-4 p-4 rounded-xl text-sm font-medium flex items-center gap-2 bg-red-50 text-red-700 border border-red-100";
-        msgBox.innerHTML = `<span class="material-symbols-outlined">error</span> ${data.error}`;
-        msgBox.classList.remove("hidden");
+        _setAuthError(msgBox, errMsg);
       } else {
-        Toast.error(data.error || "Login failed.");
+        Toast.error(errMsg);
       }
     }
   });
@@ -241,7 +304,7 @@ function initSignupForm() {
     }
 
     if (msgBox) msgBox.classList.add("hidden");
-    btn.disabled = true;
+    btn.disabled    = true;
     btn.textContent = "Creating account…";
 
     const { ok, data } = await Auth.register(full_name, email, password);
@@ -250,14 +313,13 @@ function initSignupForm() {
       Toast.success("Account created! Welcome to BuyMint 🌱");
       setTimeout(() => { window.location.href = "/home"; }, 1000);
     } else {
-      btn.disabled = false;
+      btn.disabled    = false;
       btn.textContent = "Sign Up";
+      const errMsg = data.error || "Sign up failed.";
       if (msgBox) {
-        msgBox.className = "mb-4 p-4 rounded-xl text-sm font-medium flex items-center gap-2 bg-red-50 text-red-700 border border-red-100";
-        msgBox.innerHTML = `<span class="material-symbols-outlined">error</span> ${data.error}`;
-        msgBox.classList.remove("hidden");
+        _setAuthError(msgBox, errMsg);
       } else {
-        Toast.error(data.error || "Sign up failed.");
+        Toast.error(errMsg);
       }
     }
   });
@@ -276,12 +338,12 @@ function initContactForm() {
     const message = form.querySelector('[name="message"]').value.trim();
     const btn     = form.querySelector('[type="submit"]');
 
-    btn.disabled = true;
+    btn.disabled    = true;
     btn.textContent = "Sending…";
 
     const { ok, data } = await Contact.send(name, email, subject, message);
 
-    btn.disabled = false;
+    btn.disabled    = false;
     btn.textContent = "Send Message";
 
     if (ok) {
@@ -315,12 +377,14 @@ function initProfileForm() {
     const address   = form.querySelector('[name="address"]')?.value.trim();
     const btn       = form.querySelector('[type="submit"]');
 
-    btn.disabled = true;
+    btn.disabled    = true;
     btn.textContent = "Saving…";
 
+    // Send all three keys explicitly so the server can distinguish
+    // "key not mentioned" (skip) from "key = empty string" (clear field).
     const { ok, data } = await API.put("/api/profile/", { full_name, phone, address });
 
-    btn.disabled = false;
+    btn.disabled    = false;
     btn.textContent = "Save Changes";
 
     if (ok) Toast.success("Profile updated!");
@@ -361,7 +425,16 @@ function initCartPage() {
       clearTimeout(debounce);
       debounce = setTimeout(async () => {
         const itemId = input.dataset.qtyInput;
-        const qty    = parseInt(input.value);
+
+        // BUG FIX #24: parseInt() on an empty or non-numeric input returns NaN.
+        // JSON.stringify(NaN) produces "null", so the server received
+        // {"quantity": null} → int(None) → TypeError 500.
+        // Now we validate before making the call.
+        const qty = parseInt(input.value, 10);
+        if (isNaN(qty) || qty < 0) {
+          Toast.error("Please enter a valid quantity.");
+          return;
+        }
         const { ok } = await Cart.update(itemId, qty);
         if (ok) location.reload();
       }, 400);
@@ -373,13 +446,23 @@ function initCartPage() {
     promoBtn.addEventListener("click", async () => {
       const code = document.getElementById("promo-input")?.value.trim().toUpperCase();
       if (!code) { Toast.info("Enter a promo code."); return; }
+
+      promoBtn.disabled    = true;
+      promoBtn.textContent = "Applying…";
+
       const { ok, data } = await API.post("/api/cart/promo", { code });
+
+      promoBtn.disabled    = false;
+      promoBtn.textContent = "Apply";
+
       if (ok) {
         Toast.success(`Code applied! You save ₹${data.discount}`);
         const discountEl = document.getElementById("discount-display");
         if (discountEl) discountEl.textContent = `- ₹${data.discount}`;
         const totalEl = document.getElementById("total-display");
         if (totalEl) totalEl.textContent = `₹${data.new_total}`;
+        // Store the applied code so checkout can pick it up
+        if (promoBtn.dataset) promoBtn.dataset.appliedCode = code;
       } else {
         Toast.error(data.error || "Invalid promo code.");
       }
@@ -392,11 +475,18 @@ function initCartPage() {
       const address = document.getElementById("shipping-address")?.value.trim();
       const code    = document.getElementById("promo-input")?.value.trim().toUpperCase() || "";
       if (!address) { Toast.error("Please enter your shipping address."); return; }
-      checkoutBtn.disabled = true;
+
+      checkoutBtn.disabled    = true;
       checkoutBtn.textContent = "Placing order…";
-      const { ok, data } = await API.post("/api/cart/checkout", { shipping_address: address, promo_code: code });
-      checkoutBtn.disabled = false;
+
+      const { ok, data } = await API.post("/api/cart/checkout", {
+        shipping_address: address,
+        promo_code: code,
+      });
+
+      checkoutBtn.disabled    = false;
       checkoutBtn.textContent = "Place Order";
+
       if (ok) {
         Toast.success(`Order #${data.order.id} placed! Earned ${data.points_earned} points 🌿`);
         setTimeout(() => { window.location.href = "/order-history"; }, 2000);
@@ -413,8 +503,12 @@ function initFavoritesPage() {
     btn.addEventListener("click", async () => {
       const productId = btn.dataset.removeFav;
       const { ok, data } = await API.delete(`/api/favorites/${productId}`);
-      if (ok) { Toast.success("Removed from favorites."); btn.closest("[data-fav-card]")?.remove(); }
-      else Toast.error(data.error || "Could not remove.");
+      if (ok) {
+        Toast.success("Removed from favorites.");
+        btn.closest("[data-fav-card]")?.remove();
+      } else {
+        Toast.error(data.error || "Could not remove.");
+      }
     });
   });
 }
@@ -423,14 +517,14 @@ function initFavoritesPage() {
 function initProductCards() {
   document.querySelectorAll("[data-add-to-cart]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const id = parseInt(btn.dataset.addToCart);
+      const id = parseInt(btn.dataset.addToCart, 10);
       Cart.add(id, 1, btn);
     });
   });
 
   document.querySelectorAll("[data-toggle-fav]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const id = parseInt(btn.dataset.toggleFav);
+      const id = parseInt(btn.dataset.toggleFav, 10);
       Favorites.toggle(id, btn);
     });
   });

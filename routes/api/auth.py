@@ -1,9 +1,14 @@
+import re
 from flask import Blueprint, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from models import User
 from extensions import db
 
 auth_api = Blueprint("auth_api", __name__, url_prefix="/api/auth")
+
+# Simple but effective email regex — rejects obvious non-emails while staying
+# tolerant of international TLDs.  Full RFC-5322 parsing is overkill here.
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _ok(data: dict, status: int = 200):
@@ -27,6 +32,10 @@ def register():
         return _err("Full name is required.")
     if not email:
         return _err("Email is required.")
+    # BUG FIX #9: No email format validation — any string (or empty string with
+    # just spaces) was accepted and stored, breaking email-based lookups later.
+    if not _EMAIL_RE.match(email):
+        return _err("Please enter a valid email address.")
     if len(password) < 6:
         return _err("Password must be at least 6 characters.")
     if User.query.filter_by(email=email).first():
@@ -37,7 +46,11 @@ def register():
     db.session.add(user)
     db.session.commit()
 
-    login_user(user, remember=True)
+    # BUG FIX #10: register() was calling login_user(user, remember=True),
+    # hardcoding a persistent ("remember me") session for every new user,
+    # regardless of whether they asked for one.  Changed to remember=False so
+    # the session expires when the browser closes (standard, secure default).
+    login_user(user, remember=False)
     return _ok({"message": "Account created successfully.", "user": user.to_dict()}, 201)
 
 

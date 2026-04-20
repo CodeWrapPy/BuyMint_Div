@@ -1,8 +1,12 @@
 from flask import Blueprint, request, jsonify
-from models import Product
 from extensions import db
+from models import Product
 
 products_api = Blueprint("products_api", __name__, url_prefix="/api/products")
+
+# BUG FIX #16: No cap on per_page — a client could send ?per_page=999999 and
+# force the server to serialise the entire catalogue in one shot, causing a DoS.
+MAX_PER_PAGE = 50
 
 
 def _ok(data, status=200):
@@ -20,7 +24,7 @@ def list_products():
     q        = request.args.get("q", "").strip()
     sort     = request.args.get("sort", "default")
     page     = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 12, type=int)
+    per_page = min(request.args.get("per_page", 12, type=int), MAX_PER_PAGE)
 
     query = Product.query.filter_by(is_active=True)
 
@@ -42,9 +46,9 @@ def list_products():
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return _ok({
-        "products":    [p.to_dict() for p in pagination.items],
-        "total":       pagination.total,
-        "pages":       pagination.pages,
+        "products":     [p.to_dict() for p in pagination.items],
+        "total":        pagination.total,
+        "pages":        pagination.pages,
         "current_page": page,
     })
 
@@ -52,7 +56,9 @@ def list_products():
 # ─── Single product ──────────────────────────────────────────
 @products_api.route("/<int:product_id>", methods=["GET"])
 def get_product(product_id):
-    product = Product.query.get_or_404(product_id)
+    # BUG FIX #17: Product.query.get_or_404() uses the deprecated Query.get()
+    # API which is removed in SQLAlchemy 2.x.  Use db.get_or_404() instead.
+    product = db.get_or_404(Product, product_id)
     return _ok({"product": product.to_dict()})
 
 
@@ -60,7 +66,7 @@ def get_product(product_id):
 @products_api.route("/category/<string:category>", methods=["GET"])
 def by_category(category):
     page     = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 12, type=int)
+    per_page = min(request.args.get("per_page", 12, type=int), MAX_PER_PAGE)
 
     pagination = (
         Product.query
