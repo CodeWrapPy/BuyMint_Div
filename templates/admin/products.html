@@ -1,0 +1,404 @@
+{% extends "admin/base.html" %}
+{% set active_page = "products" %}
+{% set page_title = "Products Management" %}
+
+{% block topbar_actions %}
+<form method="GET" action="{{ url_for('admin.products') }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+  <div class="search-bar">
+    <span class="material-symbols-outlined">search</span>
+    <input type="text" name="q" value="{{ search }}" placeholder="Search products…">
+  </div>
+  <select name="category" class="admin-input admin-select" style="width:140px" onchange="this.form.submit()">
+    <option value="">All Categories</option>
+    {% for cat in categories %}
+    <option value="{{ cat }}" {{ 'selected' if cat == selected_category }}>{{ cat | title }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="topbar-btn topbar-btn-primary">Filter</button>
+  {% if search or selected_category %}<a href="{{ url_for('admin.products') }}" class="topbar-btn topbar-btn-outline">Clear</a>{% endif %}
+</form>
+<button class="topbar-btn topbar-btn-primary" onclick="openModal('add-product-modal')" style="margin-left:4px">
+  <span class="material-symbols-outlined" style="font-size:16px">add</span> Add Product
+</button>
+{% endblock %}
+
+{% block content %}
+<style>
+  .stock-low { color:#dc2626 !important; font-weight:600; }
+  .stock-med { color:#b45309 !important; font-weight:600; }
+  .stock-ok { color:var(--admin-text) !important; font-weight:600; }
+</style>
+<div class="admin-card">
+  <div class="admin-card-header">
+    <span class="admin-card-title">Products
+      <span style="color:var(--admin-muted);font-weight:500;font-size:13px;margin-left:6px">({{ pagination.total }})</span>
+    </span>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Product</th>
+          <th>Category</th>
+          <th>Price</th>
+          <th>Stock</th>
+          <th>Rating</th>
+          <th>Organic</th>
+          <th>Active</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for product in pagination.items %}
+        <tr id="product-row-{{ product.id }}">
+          <td style="color:var(--admin-muted);font-size:12px">#{{ product.id }}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:42px;height:42px;border-radius:10px;overflow:hidden;flex-shrink:0;background:#f3f4f6">
+                <img src="{{ product.image_url or 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=80' }}"
+                     alt="{{ product.name }}" style="width:100%;height:100%;object-fit:cover"
+                     onerror="this.src='https://images.unsplash.com/photo-1542838132-92c53300491e?w=80'">
+              </div>
+              <span style="font-weight:600;font-size:13.5px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ product.name }}</span>
+            </div>
+          </td>
+          <td><span class="chip chip-gray">{{ product.category | title }}</span></td>
+          <td>
+            <div style="font-weight:700">₹{{ product.price | int }}</div>
+            {% if product.original_price %}
+            <div style="font-size:11px;color:var(--admin-muted);text-decoration:line-through">₹{{ product.original_price | int }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <span class="{% if product.stock < 10 %}stock-low{% elif product.stock < 30 %}stock-med{% else %}stock-ok{% endif %}">
+              {{ product.stock }}
+            </span>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:4px">
+              <span style="color:#f59e0b;font-size:14px">★</span>
+              <span style="font-weight:600;font-size:13px">{{ product.rating }}</span>
+            </div>
+          </td>
+          <td>
+            {% if product.is_organic %}
+            <span class="chip chip-green">Organic</span>
+            {% else %}
+            <span class="chip chip-gray">No</span>
+            {% endif %}
+          </td>
+          <td>
+            <label class="toggle-switch">
+              <input type="checkbox" {{ 'checked' if product.is_active }} data-product-id="{{ product.id }}" onchange="toggleProduct(this.dataset.productId, 'is_active', this.checked)">
+              <span class="toggle-track"></span>
+            </label>
+          </td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="btn-icon" title="Edit" data-product-id="{{ product.id }}" data-product='{{ product.to_dict() | tojson }}' onclick='openEditProduct(this.dataset.productId, JSON.parse(this.dataset.product))'>
+                <span class="material-symbols-outlined">edit</span>
+              </button>
+              <button class="btn-icon btn-icon-danger" title="Delete" data-product-id="{{ product.id }}" data-product-name="{{ product.name }}" onclick="confirmDeleteProduct(this.dataset.productId, this.dataset.productName)">
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" style="text-align:center;color:var(--admin-muted);padding:40px">
+            <span class="material-symbols-outlined" style="font-size:40px;display:block;margin-bottom:8px;opacity:0.4">inventory_2</span>
+            No products found
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagination.pages > 1 %}
+  <div class="pagination">
+    <a href="{{ url_for('admin.products', page=pagination.prev_num, q=search, category=selected_category) }}"
+       class="page-btn {% if not pagination.has_prev %}disabled{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:16px">chevron_left</span>
+    </a>
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+      {% if p %}
+        <a href="{{ url_for('admin.products', page=p, q=search, category=selected_category) }}"
+           class="page-btn {% if p == pagination.page %}active{% endif %}">{{ p }}</a>
+      {% else %}
+        <span class="page-btn disabled">…</span>
+      {% endif %}
+    {% endfor %}
+    <a href="{{ url_for('admin.products', page=pagination.next_num, q=search, category=selected_category) }}"
+       class="page-btn {% if not pagination.has_next %}disabled{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:16px">chevron_right</span>
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── Add Product Modal ──────────────────────────────────── -->
+<div class="modal-overlay" id="add-product-modal">
+  <div class="modal-box" style="max-width:580px">
+    <div class="modal-header">
+      <span class="modal-title">Add New Product</span>
+      <button class="modal-close" onclick="closeModal('add-product-modal')">
+        <span class="material-symbols-outlined" style="font-size:18px">close</span>
+      </button>
+    </div>
+    <div class="modal-body" style="max-height:65vh;overflow-y:auto">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Product Name *</label>
+          <input type="text" class="admin-input" id="add-name" placeholder="e.g. Organic Cotton Tee">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category *</label>
+          <select class="admin-input admin-select" id="add-category">
+            <option value="clothing">Clothing</option>
+            <option value="beauty">Beauty</option>
+            <option value="sports">Sports</option>
+            <option value="dining">Dining</option>
+            <option value="stationery">Stationery</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="admin-input" id="add-description" rows="3" placeholder="Product description…" style="resize:vertical"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Price (₹) *</label>
+          <input type="number" class="admin-input" id="add-price" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Original Price (₹)</label>
+          <input type="number" class="admin-input" id="add-original-price" placeholder="Strikethrough price" min="0" step="0.01">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Stock</label>
+          <input type="number" class="admin-input" id="add-stock" value="100" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rating</label>
+          <input type="number" class="admin-input" id="add-rating" value="4.5" min="1" max="5" step="0.1">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Image URL</label>
+        <input type="url" class="admin-input" id="add-image-url" placeholder="https://…">
+      </div>
+      <div style="display:flex;gap:20px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer">
+          <input type="checkbox" id="add-is-organic" checked style="width:16px;height:16px;accent-color:#384e2d"> Is Organic
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer">
+          <input type="checkbox" id="add-is-active" checked style="width:16px;height:16px;accent-color:#384e2d"> Active
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('add-product-modal')">Cancel</button>
+      <button class="btn-submit" onclick="submitAddProduct()">Add Product</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Edit Product Modal ──────────────────────────────────── -->
+<div class="modal-overlay" id="edit-product-modal">
+  <div class="modal-box" style="max-width:580px">
+    <div class="modal-header">
+      <span class="modal-title">Edit Product</span>
+      <button class="modal-close" onclick="closeModal('edit-product-modal')">
+        <span class="material-symbols-outlined" style="font-size:18px">close</span>
+      </button>
+    </div>
+    <div class="modal-body" style="max-height:65vh;overflow-y:auto">
+      <input type="hidden" id="edit-product-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Product Name *</label>
+          <input type="text" class="admin-input" id="edit-name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category *</label>
+          <select class="admin-input admin-select" id="edit-category">
+            <option value="clothing">Clothing</option>
+            <option value="beauty">Beauty</option>
+            <option value="sports">Sports</option>
+            <option value="dining">Dining</option>
+            <option value="stationery">Stationery</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="admin-input" id="edit-description" rows="3" style="resize:vertical"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Price (₹) *</label>
+          <input type="number" class="admin-input" id="edit-price" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Original Price (₹)</label>
+          <input type="number" class="admin-input" id="edit-original-price" min="0" step="0.01">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Stock</label>
+          <input type="number" class="admin-input" id="edit-stock" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rating</label>
+          <input type="number" class="admin-input" id="edit-rating" min="1" max="5" step="0.1">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Image URL</label>
+        <input type="url" class="admin-input" id="edit-image-url">
+      </div>
+      <div style="display:flex;gap:20px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer">
+          <input type="checkbox" id="edit-is-organic" style="width:16px;height:16px;accent-color:#384e2d"> Is Organic
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer">
+          <input type="checkbox" id="edit-is-active" style="width:16px;height:16px;accent-color:#384e2d"> Active
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('edit-product-modal')">Cancel</button>
+      <button class="btn-submit" onclick="submitEditProduct()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Confirm Modal ───────────────────────────────── -->
+<div class="modal-overlay" id="delete-product-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Delete Product</span>
+      <button class="modal-close" onclick="closeModal('delete-product-modal')">
+        <span class="material-symbols-outlined" style="font-size:18px">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--admin-muted);font-size:14px">
+        Are you sure you want to delete <strong id="delete-product-name" style="color:var(--admin-text)"></strong>? This cannot be undone.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('delete-product-modal')">Cancel</button>
+      <button class="btn-submit btn-submit-danger" id="confirm-delete-product-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Add Product ────────────────────────────────────────────
+async function submitAddProduct() {
+  const body = {
+    name:           document.getElementById('add-name').value.trim(),
+    description:    document.getElementById('add-description').value.trim(),
+    price:          document.getElementById('add-price').value,
+    original_price: document.getElementById('add-original-price').value || null,
+    category:       document.getElementById('add-category').value,
+    image_url:      document.getElementById('add-image-url').value.trim(),
+    stock:          document.getElementById('add-stock').value,
+    rating:         document.getElementById('add-rating').value,
+    is_organic:     document.getElementById('add-is-organic').checked,
+    is_active:      document.getElementById('add-is-active').checked,
+  };
+  if (!body.name || !body.price || !body.category) {
+    return showToast('Name, price and category are required.', 'error');
+  }
+  const r = await adminFetch('/api/admin/products', 'POST', body);
+  if (r.success) {
+    showToast('Product added!');
+    closeModal('add-product-modal');
+    setTimeout(() => location.reload(), 800);
+  } else {
+    showToast(r.error, 'error');
+  }
+}
+
+// ── Edit Product ───────────────────────────────────────────
+function openEditProduct(id, product) {
+  document.getElementById('edit-product-id').value   = id;
+  document.getElementById('edit-name').value          = product.name || '';
+  document.getElementById('edit-description').value   = product.description || '';
+  document.getElementById('edit-price').value         = product.price || '';
+  document.getElementById('edit-original-price').value = product.original_price || '';
+  document.getElementById('edit-category').value      = product.category || 'clothing';
+  document.getElementById('edit-image-url').value     = product.image_url || '';
+  document.getElementById('edit-stock').value         = product.stock ?? 100;
+  document.getElementById('edit-rating').value        = product.rating ?? 4.5;
+  document.getElementById('edit-is-organic').checked  = !!product.is_organic;
+  document.getElementById('edit-is-active').checked   = !!product.is_active;
+  openModal('edit-product-modal');
+}
+
+async function submitEditProduct() {
+  const id = document.getElementById('edit-product-id').value;
+  const body = {
+    name:           document.getElementById('edit-name').value.trim(),
+    description:    document.getElementById('edit-description').value.trim(),
+    price:          document.getElementById('edit-price').value,
+    original_price: document.getElementById('edit-original-price').value || null,
+    category:       document.getElementById('edit-category').value,
+    image_url:      document.getElementById('edit-image-url').value.trim(),
+    stock:          document.getElementById('edit-stock').value,
+    rating:         document.getElementById('edit-rating').value,
+    is_organic:     document.getElementById('edit-is-organic').checked,
+    is_active:      document.getElementById('edit-is-active').checked,
+  };
+  const r = await adminFetch(`/api/admin/products/${id}`, 'PATCH', body);
+  if (r.success) {
+    showToast('Product updated!');
+    closeModal('edit-product-modal');
+    setTimeout(() => location.reload(), 800);
+  } else {
+    showToast(r.error, 'error');
+  }
+}
+
+// ── Toggle Product field ───────────────────────────────────
+async function toggleProduct(id, field, value) {
+  const r = await adminFetch(`/api/admin/products/${id}`, 'PATCH', { [field]: value });
+  if (r.success) showToast(`Product ${field} updated.`);
+  else { showToast(r.error, 'error'); location.reload(); }
+}
+
+// ── Delete Product ─────────────────────────────────────────
+let _delProductId = null;
+
+function confirmDeleteProduct(id, name) {
+  _delProductId = id;
+  document.getElementById('delete-product-name').textContent = name;
+  openModal('delete-product-modal');
+}
+
+document.getElementById('confirm-delete-product-btn').addEventListener('click', async () => {
+  if (!_delProductId) return;
+  const r = await adminFetch(`/api/admin/products/${_delProductId}`, 'DELETE');
+  closeModal('delete-product-modal');
+  if (r.success) {
+    document.getElementById(`product-row-${_delProductId}`)?.remove();
+    showToast('Product deleted.');
+  } else {
+    showToast(r.error, 'error');
+  }
+  _delProductId = null;
+});
+</script>
+{% endblock %}

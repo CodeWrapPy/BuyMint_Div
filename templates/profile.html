@@ -77,6 +77,11 @@
 
       <div class="bg-surface rounded-2xl p-6 shadow-sm space-y-2">
         <h2 class="font-headline text-lg font-bold text-on-surface mb-4">Quick Links</h2>
+        <a href="{{ url_for('views.dashboard') }}" class="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-primary">dashboard</span>
+          <span class="font-medium text-sm">Dashboard</span>
+          <span class="material-symbols-outlined text-outline ml-auto text-sm">chevron_right</span>
+        </a>
         <a href="{{ url_for('views.order_history') }}" class="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container transition-colors">
           <span class="material-symbols-outlined text-primary">receipt_long</span>
           <span class="font-medium text-sm">Order History</span>
@@ -92,6 +97,14 @@
           <span class="font-medium text-sm">Rewards ({{ current_user.reward_points }} pts)</span>
           <span class="material-symbols-outlined text-outline ml-auto text-sm">chevron_right</span>
         </a>
+        {% if current_user.is_admin %}
+        <hr class="border-outline-variant/20 my-2"/>
+        <a href="{{ url_for('admin.dashboard') }}" class="flex items-center gap-3 p-3 rounded-xl hover:bg-primary/10 transition-colors">
+          <span class="material-symbols-outlined text-primary">admin_panel_settings</span>
+          <span class="font-medium text-sm text-primary font-semibold">Admin Panel</span>
+          <span class="material-symbols-outlined text-outline ml-auto text-sm">chevron_right</span>
+        </a>
+        {% endif %}
         <hr class="border-outline-variant/20 my-2"/>
         <button data-action="logout" class="flex items-center gap-3 p-3 rounded-xl hover:bg-error-container/10 transition-colors w-full text-left">
           <span class="material-symbols-outlined text-error">logout</span>
@@ -100,6 +113,7 @@
       </div>
     </div>
   </div>
+
 
 </main>
 

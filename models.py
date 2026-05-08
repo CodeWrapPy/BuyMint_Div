@@ -38,6 +38,7 @@ class User(db.Model, UserMixin):
     reward_points = db.Column(db.Integer, default=0)
     tier          = db.Column(db.String(20), default="Seedling")  # Seedling/Sprout/Grove/Forest
     is_active     = db.Column(db.Boolean, default=True)
+    is_admin      = db.Column(db.Boolean, default=False)
     created_at    = db.Column(db.DateTime, default=_utcnow)
 
     # Relationships
@@ -74,6 +75,8 @@ class User(db.Model, UserMixin):
             "avatar_url":   self.avatar_url,
             "reward_points": self.reward_points,
             "tier":         self.tier,
+            "is_admin":     self.is_admin,
+            "is_active":    self.is_active,
             "created_at":   self.created_at.isoformat(),
         }
 
@@ -251,6 +254,7 @@ class ContactMessage(db.Model):
             "email":      self.email,
             "subject":    self.subject,
             "message":    self.message,
+            "is_read":    self.is_read,
             "created_at": self.created_at.isoformat(),
         }
 

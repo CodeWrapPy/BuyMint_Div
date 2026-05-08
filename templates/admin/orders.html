@@ -1,0 +1,167 @@
+{% extends "admin/base.html" %}
+{% set active_page = "orders" %}
+{% set page_title = "Orders Management" %}
+
+{% block topbar_actions %}
+<style>
+  .status-tab { padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:600;text-decoration:none; }
+  .status-tab-active { background:#384e2d;color:#fff; border:1px solid transparent; }
+  .status-tab-inactive { background:#fff;color:#6b7280;border:1px solid #e5e7eb; }
+</style>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+  {% for s in [''] + status_choices %}
+  <a href="{{ url_for('admin.orders', status=s) }}"
+     class="status-tab {{ 'status-tab-active' if s == selected_status else 'status-tab-inactive' }}">
+    {{ s | title if s else 'All' }}
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div class="admin-card">
+  <div class="admin-card-header">
+    <span class="admin-card-title">Orders
+      <span style="color:var(--admin-muted);font-weight:500;font-size:13px;margin-left:6px">({{ pagination.total }})</span>
+    </span>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Order ID</th>
+          <th>Customer</th>
+          <th>Items</th>
+          <th>Amount</th>
+          <th>Discount</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in pagination.items %}
+        {% set sc = {
+          'pending':'chip-amber','confirmed':'chip-blue','processing':'chip-purple',
+          'shipped':'chip-blue','delivered':'chip-green','cancelled':'chip-red'
+        } %}
+        <tr id="order-row-{{ order.id }}">
+          <td><span style="font-weight:700;color:#384e2d">#{{ order.id }}</span></td>
+          <td>
+            {% if order.user %}
+            <div style="font-weight:600;font-size:13.5px">{{ order.user.full_name }}</div>
+            <div style="font-size:11px;color:var(--admin-muted)">{{ order.user.email }}</div>
+            {% else %}—{% endif %}
+          </td>
+          <td style="font-weight:600">{{ order.items | length }}</td>
+          <td style="font-weight:700">₹{{ "{:,.0f}".format(order.total_amount) }}</td>
+          <td>
+            {% if order.discount_amount > 0 %}
+            <span style="color:#16a34a;font-weight:600">-₹{{ "{:,.0f}".format(order.discount_amount) }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            <span class="chip {{ sc.get(order.status, 'chip-gray') }}" id="status-chip-{{ order.id }}">{{ order.status | title }}</span>
+          </td>
+          <td style="color:var(--admin-muted);font-size:12px">{{ order.created_at.strftime('%d %b %Y, %H:%M') }}</td>
+          <td>
+            <button class="btn-icon" title="Update Status" data-order-id="{{ order.id }}" data-order-status="{{ order.status }}" onclick="openStatusModal(this.dataset.orderId, this.dataset.orderStatus)">
+              <span class="material-symbols-outlined">edit</span>
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" style="text-align:center;color:var(--admin-muted);padding:40px">
+            <span class="material-symbols-outlined" style="font-size:40px;display:block;margin-bottom:8px;opacity:0.4">receipt_long</span>
+            No orders found
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagination.pages > 1 %}
+  <div class="pagination">
+    <a href="{{ url_for('admin.orders', page=pagination.prev_num, status=selected_status) }}"
+       class="page-btn {% if not pagination.has_prev %}disabled{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:16px">chevron_left</span>
+    </a>
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+      {% if p %}
+        <a href="{{ url_for('admin.orders', page=p, status=selected_status) }}"
+           class="page-btn {% if p == pagination.page %}active{% endif %}">{{ p }}</a>
+      {% else %}
+        <span class="page-btn disabled">…</span>
+      {% endif %}
+    {% endfor %}
+    <a href="{{ url_for('admin.orders', page=pagination.next_num, status=selected_status) }}"
+       class="page-btn {% if not pagination.has_next %}disabled{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:16px">chevron_right</span>
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── Status Update Modal ────────────────────────────────── -->
+<div class="modal-overlay" id="status-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Update Order Status</span>
+      <button class="modal-close" onclick="closeModal('status-modal')">
+        <span class="material-symbols-outlined" style="font-size:18px">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="status-order-id">
+      <div class="form-group">
+        <label class="form-label">New Status</label>
+        <select class="admin-input admin-select" id="status-select">
+          {% for s in status_choices %}
+          <option value="{{ s }}">{{ s | title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('status-modal')">Cancel</button>
+      <button class="btn-submit" onclick="submitStatus()">Update Status</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const STATUS_CHIP_CLASSES = {
+  pending:'chip-amber', confirmed:'chip-blue', processing:'chip-purple',
+  shipped:'chip-blue', delivered:'chip-green', cancelled:'chip-red'
+};
+
+function openStatusModal(orderId, currentStatus) {
+  document.getElementById('status-order-id').value = orderId;
+  document.getElementById('status-select').value = currentStatus;
+  openModal('status-modal');
+}
+
+async function submitStatus() {
+  const orderId = document.getElementById('status-order-id').value;
+  const status  = document.getElementById('status-select').value;
+  const r = await adminFetch(`/api/admin/orders/${orderId}`, 'PATCH', { status });
+  closeModal('status-modal');
+  if (r.success) {
+    const chip = document.getElementById(`status-chip-${orderId}`);
+    if (chip) {
+      chip.className = `chip ${STATUS_CHIP_CLASSES[status] || 'chip-gray'}`;
+      chip.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+    }
+    showToast(`Order #${orderId} status updated to ${status}.`);
+  } else {
+    showToast(r.error, 'error');
+  }
+}
+</script>
+{% endblock %}

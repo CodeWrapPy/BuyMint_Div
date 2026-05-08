@@ -57,6 +57,10 @@ def create_app(env: str = None) -> Flask:
     from routes.views import views
     app.register_blueprint(views)
 
+    # ── Blueprints – Admin Panel ─────────────────────────────
+    from routes.admin import admin
+    app.register_blueprint(admin)
+
     # ── Blueprints – REST API ────────────────────────────────
     from routes.api.auth      import auth_api
     from routes.api.products  import products_api
@@ -66,11 +70,12 @@ def create_app(env: str = None) -> Flask:
     from routes.api.profile   import profile_api
     from routes.api.contact   import contact_api
     from routes.api.rewards   import rewards_api
+    from routes.api.admin_api import admin_api
 
     for bp in (
         auth_api, products_api, cart_api,
         favorites_api, orders_api, profile_api,
-        contact_api, rewards_api,
+        contact_api, rewards_api, admin_api,
     ):
         csrf.exempt(bp)
         app.register_blueprint(bp)
@@ -79,6 +84,13 @@ def create_app(env: str = None) -> Flask:
     with app.app_context():
         db.create_all()
         _seed_if_empty()
+
+    # ── Error handlers ───────────────────────────────────────
+    from flask import render_template as _rt
+
+    @app.errorhandler(403)
+    def forbidden(e):
+        return _rt("403.html"), 403
 
     return app
 

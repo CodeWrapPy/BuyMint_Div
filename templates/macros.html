@@ -141,8 +141,11 @@
           {{ current_user.full_name.split()[0] }}
           <span class="material-symbols-outlined text-sm transition-transform duration-200" data-dropdown-chevron>expand_more</span>
         </button>
-        <div class="absolute right-0 top-full pt-3 w-52" data-dropdown-panel>
+        <div class="absolute right-0 top-full pt-3 w-56" data-dropdown-panel>
           <div class="bg-surface rounded-xl shadow-lg border border-outline-variant/20 overflow-hidden">
+            <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.dashboard') }}">
+              <span class="material-symbols-outlined text-[18px]">dashboard</span> Dashboard
+            </a>
             <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.profile') }}">
               <span class="material-symbols-outlined text-[18px]">manage_accounts</span> My Profile
             </a>
@@ -152,6 +155,12 @@
             <a class="flex items-center gap-2 px-4 py-3 text-sm text-on-surface hover:bg-surface-container-low" href="{{ url_for('views.rewards') }}">
               <span class="material-symbols-outlined text-[18px]">workspace_premium</span> Rewards
             </a>
+            {% if current_user.is_admin %}
+            <hr class="border-outline-variant/20 mx-3"/>
+            <a class="flex items-center gap-2 px-4 py-3 text-sm text-emerald-900 font-semibold hover:bg-primary/10" href="{{ url_for('admin.dashboard') }}">
+              <span class="material-symbols-outlined text-[18px]">admin_panel_settings</span> Admin Panel
+            </a>
+            {% endif %}
             <hr class="border-outline-variant/20 mx-3"/>
             <button data-action="logout" class="flex items-center gap-2 w-full px-4 py-3 text-sm text-error hover:bg-error-container/10">
               <span class="material-symbols-outlined text-[18px]">logout</span> Logout

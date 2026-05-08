@@ -1,0 +1,223 @@
+{% extends "admin/base.html" %}
+{% set active_page = "messages" %}
+{% set page_title = "Contact Messages" %}
+
+{% block topbar_actions %}
+<style>
+  .msg-tab { padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:600;text-decoration:none; }
+  .msg-tab-active { background:#384e2d;color:#fff; border:1px solid transparent; }
+  .msg-tab-inactive { background:#fff;color:#6b7280;border:1px solid #e5e7eb; }
+  
+  /* Linter-friendly classes for read/unread rows */
+  .msg-unread-row { background:#fdfff9; }
+  .msg-unread-text { font-weight:700; }
+  .msg-read-text { font-weight:500; }
+  .msg-unread-subj { font-weight:600; }
+  .msg-read-subj { font-weight:400; }
+</style>
+<div style="display:flex;gap:8px">
+  <a href="{{ url_for('admin.messages') }}"
+     class="msg-tab {{ 'msg-tab-active' if not unread else 'msg-tab-inactive' }}">
+    All Messages
+  </a>
+  <a href="{{ url_for('admin.messages', unread='1') }}"
+     class="msg-tab {{ 'msg-tab-active' if unread == '1' else 'msg-tab-inactive' }}">
+    Unread Only
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div class="admin-card">
+  <div class="admin-card-header">
+    <span class="admin-card-title">Messages
+      <span style="color:var(--admin-muted);font-weight:500;font-size:13px;margin-left:6px">({{ pagination.total }})</span>
+    </span>
+  </div>
+
+  <div style="overflow-x:auto">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>From</th>
+          <th>Subject</th>
+          <th>Preview</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for msg in pagination.items %}
+        <tr id="msg-row-{{ msg.id }}" class="{{ 'msg-unread-row' if not msg.is_read else '' }}">
+          <td style="color:var(--admin-muted);font-size:12px">#{{ msg.id }}</td>
+          <td>
+            <div class="{{ 'msg-unread-text' if not msg.is_read else 'msg-read-text' }}" style="font-size:13.5px">{{ msg.name }}</div>
+            <div style="font-size:11px;color:var(--admin-muted)">{{ msg.email }}</div>
+          </td>
+          <td class="{{ 'msg-unread-subj' if not msg.is_read else 'msg-read-subj' }}" style="font-size:13.5px">
+            {{ msg.subject or '(No subject)' }}
+          </td>
+          <td style="color:var(--admin-muted);font-size:13px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            {{ msg.message[:80] }}{% if msg.message | length > 80 %}…{% endif %}
+          </td>
+          <td style="color:var(--admin-muted);font-size:12px">{{ msg.created_at.strftime('%d %b %Y') }}</td>
+          <td>
+            {% if msg.is_read %}
+            <span class="chip chip-gray">Read</span>
+            {% else %}
+            <span class="chip chip-green" style="background:#dcfce7;color:#15803d">New</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="btn-icon" title="View message" data-msg-id="{{ msg.id }}" data-msg='{{ msg.to_dict() | tojson }}' onclick='viewMessage(this.dataset.msgId, JSON.parse(this.dataset.msg))'>
+                <span class="material-symbols-outlined">visibility</span>
+              </button>
+              {% if not msg.is_read %}
+              <button class="btn-icon btn-icon-success" title="Mark as read" data-msg-id="{{ msg.id }}" onclick="markRead(this.dataset.msgId)">
+                <span class="material-symbols-outlined">mark_email_read</span>
+              </button>
+              {% endif %}
+              <button class="btn-icon btn-icon-danger" title="Delete" data-msg-id="{{ msg.id }}" onclick="confirmDeleteMsg(this.dataset.msgId)">
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align:center;color:var(--admin-muted);padding:40px">
+            <span class="material-symbols-outlined" style="font-size:40px;display:block;margin-bottom:8px;opacity:0.4">mark_email_read</span>
+            No messages yet
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagination.pages > 1 %}
+  <div class="pagination">
+    <a href="{{ url_for('admin.messages', page=pagination.prev_num, unread=unread) }}"
+       class="page-btn {% if not pagination.has_prev %}disabled{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:16px">chevron_left</span>
+    </a>
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+      {% if p %}
+        <a href="{{ url_for('admin.messages', page=p, unread=unread) }}"
+           class="page-btn {% if p == pagination.page %}active{% endif %}">{{ p }}</a>
+      {% else %}
+        <span class="page-btn disabled">…</span>
+      {% endif %}
+    {% endfor %}
+    <a href="{{ url_for('admin.messages', page=pagination.next_num, unread=unread) }}"
+       class="page-btn {% if not pagination.has_next %}disabled{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:16px">chevron_right</span>
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── View Message Modal ──────────────────────────────────── -->
+<div class="modal-overlay" id="view-msg-modal">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title" id="view-msg-title">Message</span>
+      <button class="modal-close" onclick="closeModal('view-msg-modal')">
+        <span class="material-symbols-outlined" style="font-size:18px">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div>
+          <div class="form-label">From</div>
+          <div id="view-msg-name" style="font-weight:600;font-size:14px"></div>
+          <div id="view-msg-email" style="color:var(--admin-muted);font-size:12.5px"></div>
+        </div>
+        <div>
+          <div class="form-label">Received</div>
+          <div id="view-msg-date" style="font-size:13.5px;font-weight:500"></div>
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <div class="form-label">Subject</div>
+        <div id="view-msg-subject" style="font-weight:600;font-size:14px"></div>
+      </div>
+      <div>
+        <div class="form-label">Message</div>
+        <div id="view-msg-body" style="font-size:13.5px;line-height:1.7;color:var(--admin-text);background:var(--admin-bg);border-radius:10px;padding:14px;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('view-msg-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Confirm Modal ───────────────────────────────── -->
+<div class="modal-overlay" id="delete-msg-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Delete Message</span>
+      <button class="modal-close" onclick="closeModal('delete-msg-modal')">
+        <span class="material-symbols-outlined" style="font-size:18px">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--admin-muted);font-size:14px">Delete this message permanently? This cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('delete-msg-modal')">Cancel</button>
+      <button class="btn-submit btn-submit-danger" id="confirm-delete-msg-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function viewMessage(id, msg) {
+  document.getElementById('view-msg-title').textContent   = msg.subject || 'Message';
+  document.getElementById('view-msg-name').textContent    = msg.name;
+  document.getElementById('view-msg-email').textContent   = msg.email;
+  document.getElementById('view-msg-subject').textContent = msg.subject || '(No subject)';
+  document.getElementById('view-msg-body').textContent    = msg.message;
+  document.getElementById('view-msg-date').textContent    = new Date(msg.created_at).toLocaleString();
+  openModal('view-msg-modal');
+  // Auto-mark as read
+  if (!msg.is_read) markRead(id);
+}
+
+async function markRead(id) {
+  const r = await adminFetch(`/api/admin/messages/${id}/read`, 'POST');
+  if (r.success) {
+    const row = document.getElementById(`msg-row-${id}`);
+    if (row) row.style.background = '';
+    showToast('Marked as read.');
+    setTimeout(() => location.reload(), 1000);
+  } else showToast(r.error, 'error');
+}
+
+let _delMsgId = null;
+
+function confirmDeleteMsg(id) {
+  _delMsgId = id;
+  openModal('delete-msg-modal');
+}
+
+document.getElementById('confirm-delete-msg-btn').addEventListener('click', async () => {
+  if (!_delMsgId) return;
+  const r = await adminFetch(`/api/admin/messages/${_delMsgId}`, 'DELETE');
+  closeModal('delete-msg-modal');
+  if (r.success) {
+    document.getElementById(`msg-row-${_delMsgId}`)?.remove();
+    showToast('Message deleted.');
+  } else showToast(r.error, 'error');
+  _delMsgId = null;
+});
+</script>
+{% endblock %}
